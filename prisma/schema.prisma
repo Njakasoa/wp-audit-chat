@@ -1,0 +1,52 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Audit {
+  id        String   @id @default(cuid())
+  url       String
+  createdAt DateTime @default(now())
+  status    String
+  scores    Json?
+  summary   String?
+  findings  Finding[]
+  pages     PageSample[]
+}
+
+model Finding {
+  id       String @id @default(cuid())
+  audit    Audit  @relation(fields: [auditId], references: [id])
+  auditId  String
+  category String
+  severity String
+  impact   Int?
+  effort   Int?
+  details  Json?
+}
+
+model PageSample {
+  id                 String @id @default(cuid())
+  audit              Audit  @relation(fields: [auditId], references: [id])
+  auditId            String
+  url                String
+  status             Int?
+  title              String?
+  h1Count            Int?
+  metaDescPresent    Boolean?
+  canonical          String?
+  imgWithoutAltCount Int?
+  jsCount            Int?
+  cssCount           Int?
+  largestImageBytes  Int?
+}
+
+model Integration {
+  id        String   @id @default(cuid())
+  keyName   String
+  createdAt DateTime @default(now())
+}
