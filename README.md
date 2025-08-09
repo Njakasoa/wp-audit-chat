@@ -9,6 +9,7 @@ Next.js app that audits WordPress sites and streams progress.
    nvm use
    node --version
    npm install
+   npx prisma generate # initialize Prisma client if needed
    npm run dev
    ```
 
