@@ -67,3 +67,31 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
   }
   return scores;
 }
+
+export async function robotsTxtExists(siteUrl: string): Promise<boolean> {
+  try {
+    const robotsUrl = new URL("/robots.txt", siteUrl).toString();
+    await got(robotsUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function sitemapExists(siteUrl: string): Promise<boolean> {
+  try {
+    const sitemapUrl = new URL("/sitemap.xml", siteUrl).toString();
+    await got(sitemapUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
