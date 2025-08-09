@@ -46,9 +46,6 @@ export default function Home() {
         {messages.map((m, i) => (
           <div key={i} className="p-2 rounded border ">
             <pre>{JSON.stringify(m)}</pre>
-            {m.imagesWithoutAlt !== undefined && (
-              <div>Images without alt: {m.imagesWithoutAlt}</div>
-            )}
           </div>
         ))}
       </div>
