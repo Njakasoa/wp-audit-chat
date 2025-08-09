@@ -2,9 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEmitter } from "@/lib/audit";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const emitter = getEmitter(params.id);
-  const audit = await prisma.audit.findUnique({ where: { id: params.id } });
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const emitter = getEmitter(id);
+  const audit = await prisma.audit.findUnique({ where: { id } });
   return new Response(
     new ReadableStream({
       start(controller) {
