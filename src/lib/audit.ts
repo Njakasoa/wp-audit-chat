@@ -2,7 +2,12 @@ import EventEmitter from "events";
 import got from "got";
 import * as cheerio from "cheerio";
 import { prisma } from "@/lib/prisma";
-import { fetchPageSpeedScores, fetchWordPressInfo } from "@/lib/tools";
+import {
+  fetchPageSpeedScores,
+  fetchWordPressInfo,
+  robotsTxtExists,
+  sitemapExists,
+} from "@/lib/tools";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -30,8 +35,23 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const metaDesc = $('meta[name="description"]').attr("content");
     const h1Count = $("h1").length;
     const imagesWithoutAlt = $('img:not([alt]), img[alt=""]').length;
+    const usesHttps = url.startsWith("https://");
+    const requiredSecurityHeaders = [
+      "content-security-policy",
+      "x-frame-options",
+      "x-content-type-options",
+      "strict-transport-security",
+      "referrer-policy",
+    ];
+    const missingSecurityHeaders = requiredSecurityHeaders.filter(
+      (h) => !res.headers[h as keyof typeof res.headers]
+    );
     emitter.emit("progress", { message: "Checking WordPress info..." });
-    const wpInfo = await fetchWordPressInfo(url);
+    const [wpInfo, robotsTxtPresent, sitemapPresent] = await Promise.all([
+      fetchWordPressInfo(url),
+      robotsTxtExists(url),
+      sitemapExists(url),
+    ]);
     emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
     const psi = await fetchPageSpeedScores(url);
     const data = {
@@ -40,6 +60,10 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       metaDescPresent: Boolean(metaDesc),
       h1Count,
       imagesWithoutAlt,
+      usesHttps,
+      robotsTxtPresent,
+      sitemapPresent,
+      missingSecurityHeaders,
       ...wpInfo,
       ...psi,
     };
