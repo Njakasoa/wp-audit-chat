@@ -1,11 +1,18 @@
 import got from "got";
+import * as cheerio from "cheerio";
 
 export interface WordPressInfo {
   isWordPress: boolean;
   name?: string;
+  wpVersion?: string;
+  isUpToDate?: boolean;
 }
 
 export async function fetchWordPressInfo(siteUrl: string): Promise<WordPressInfo> {
+  let isWordPress = false;
+  let name: string | undefined;
+  let wpVersion: string | undefined;
+
   try {
     const apiUrl = new URL("/wp-json", siteUrl).toString();
     const res = await got(apiUrl, {
@@ -13,14 +20,53 @@ export async function fetchWordPressInfo(siteUrl: string): Promise<WordPressInfo
       retry: { limit: 1 },
       headers: { "user-agent": "WP-Audit-Chat" },
     }).json<Record<string, unknown>>();
-    const name = res.name;
-    if (typeof name === "string") {
-      return { isWordPress: true, name };
+    const apiName = res.name;
+    if (typeof apiName === "string") {
+      name = apiName;
+      isWordPress = true;
     }
   } catch {
     // ignore errors
   }
-  return { isWordPress: false };
+
+  try {
+    const res = await got(siteUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+    });
+    const $ = cheerio.load(res.body);
+    const generator = $('meta[name="generator"]').attr("content");
+    if (generator && /wordpress/i.test(generator)) {
+      isWordPress = true;
+      const match = generator.match(/wordpress\s*([0-9.]+)/i);
+      if (match) {
+        wpVersion = match[1];
+      }
+    }
+  } catch {
+    // ignore errors
+  }
+
+  let isUpToDate: boolean | undefined;
+  if (wpVersion) {
+    try {
+      const res = await got(
+        "https://api.wordpress.org/core/stable-check/1.0/",
+        {
+          searchParams: { version: wpVersion },
+          timeout: { request: 8000 },
+          retry: { limit: 1 },
+          headers: { "user-agent": "WP-Audit-Chat" },
+        }
+      ).json<Record<string, string>>();
+      isUpToDate = res[wpVersion] === "latest";
+    } catch {
+      // ignore errors
+    }
+  }
+
+  return { isWordPress, name, wpVersion, isUpToDate };
 }
 
 export interface PageSpeedScores {

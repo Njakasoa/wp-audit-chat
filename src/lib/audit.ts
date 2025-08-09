@@ -64,7 +64,10 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       robotsTxtPresent,
       sitemapPresent,
       missingSecurityHeaders,
-      ...wpInfo,
+      isWordPress: wpInfo.isWordPress,
+      name: wpInfo.name,
+      wpVersion: wpInfo.wpVersion,
+      isUpToDate: wpInfo.isUpToDate,
       ...psi,
     };
     await prisma.audit.update({
