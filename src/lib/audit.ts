@@ -2,6 +2,7 @@ import EventEmitter from "events";
 import got from "got";
 import * as cheerio from "cheerio";
 import { prisma } from "@/lib/prisma";
+import { fetchPageSpeedScores, fetchWordPressInfo } from "@/lib/tools";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -28,11 +29,17 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const title = $("title").first().text().trim();
     const metaDesc = $('meta[name="description"]').attr("content");
     const h1Count = $("h1").length;
+    emitter.emit("progress", { message: "Checking WordPress info..." });
+    const wpInfo = await fetchWordPressInfo(url);
+    emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
+    const psi = await fetchPageSpeedScores(url);
     const data = {
       status: res.statusCode,
       title,
       metaDescPresent: Boolean(metaDesc),
       h1Count,
+      ...wpInfo,
+      ...psi,
     };
     await prisma.audit.update({
       where: { id },
