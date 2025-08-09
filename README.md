@@ -2,7 +2,7 @@
 
 Next.js app that audits WordPress sites and streams progress.
 
-Uses [Prisma](https://www.prisma.io/) with a [Neon](https://neon.tech/) Postgres database.
+Uses [Prisma](https://www.prisma.io/) with a SQLite database file.
 
 ## Setup
 
@@ -11,10 +11,12 @@ Uses [Prisma](https://www.prisma.io/) with a [Neon](https://neon.tech/) Postgres
    nvm use
    node --version
    npm install
-   cp .env.example .env # set DATABASE_URL for Neon
-   npx prisma generate # initialize Prisma client
+   cp .env.example .env # sets DATABASE_URL for SQLite
+   npx prisma db push # create the dev.db SQLite file
    npm run dev
    ```
+
+The development server uses the `dev.db` SQLite file specified in `.env`.
 
 ## Locked Versions
 
