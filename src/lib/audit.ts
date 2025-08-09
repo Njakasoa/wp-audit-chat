@@ -29,6 +29,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const title = $("title").first().text().trim();
     const metaDesc = $('meta[name="description"]').attr("content");
     const h1Count = $("h1").length;
+    const imagesWithoutAlt = $('img:not([alt]), img[alt=""]').length;
     emitter.emit("progress", { message: "Checking WordPress info..." });
     const wpInfo = await fetchWordPressInfo(url);
     emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
@@ -38,6 +39,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       title,
       metaDescPresent: Boolean(metaDesc),
       h1Count,
+      imagesWithoutAlt,
       ...wpInfo,
       ...psi,
     };
