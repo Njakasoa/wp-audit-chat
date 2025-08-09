@@ -16,7 +16,11 @@ export default function Home() {
     const { auditId } = await res.json();
     const es = new EventSource(`/api/audit/${auditId}`);
     es.onmessage = (ev) => {
-      setMessages((m) => [...m, ev.data]);
+      const data = JSON.parse(ev.data);
+      setMessages((m) => [...m, JSON.stringify(data)]);
+      if (data.status === "done" || data.status === "error") {
+        es.close();
+      }
     };
   }
 
