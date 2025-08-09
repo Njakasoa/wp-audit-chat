@@ -20,6 +20,7 @@ vi.mock("@/lib/tools", async () => {
     ...actual,
     fetchWordPressInfo: vi.fn().mockResolvedValue({ isWordPress: false }),
     fetchPageSpeedScores: vi.fn().mockResolvedValue({}),
+    fetchVulnerabilities: vi.fn().mockResolvedValue({}),
   };
 });
 

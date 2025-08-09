@@ -5,11 +5,18 @@ import { prisma } from "@/lib/prisma";
 import {
   fetchPageSpeedScores,
   fetchWordPressInfo,
+  fetchVulnerabilities,
   robotsTxtExists,
   sitemapExists,
 } from "@/lib/tools";
 
 const emitters = new Map<string, EventEmitter>();
+
+interface WpEntity {
+  slug?: string;
+  id?: string | number;
+  name?: string;
+}
 
 export async function startAudit(url: string): Promise<string> {
   const audit = await prisma.audit.create({
@@ -46,11 +53,54 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const missingSecurityHeaders = requiredSecurityHeaders.filter(
       (h) => !res.headers[h as keyof typeof res.headers]
     );
+
+    const pluginSlugs = new Set<string>();
+    const themeSlugs = new Set<string>();
+    for (const match of res.body.matchAll(/wp-content\/plugins\/([a-z0-9-]+)/gi)) {
+      pluginSlugs.add(match[1]);
+    }
+    for (const match of res.body.matchAll(/wp-content\/themes\/([a-z0-9-]+)/gi)) {
+      themeSlugs.add(match[1]);
+    }
+    try {
+      const pluginsApi = await got(new URL("/wp-json/wp/v2/plugins", url).toString(), {
+        timeout: { request: 8000 },
+        retry: { limit: 1 },
+        headers: { "user-agent": "WP-Audit-Chat" },
+      }).json<WpEntity[]>();
+      for (const p of pluginsApi) {
+        const slug = p?.slug || p?.id || p?.name;
+        if (typeof slug === "string") pluginSlugs.add(slug);
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      const themesApi = await got(new URL("/wp-json/wp/v2/themes", url).toString(), {
+        timeout: { request: 8000 },
+        retry: { limit: 1 },
+        headers: { "user-agent": "WP-Audit-Chat" },
+      }).json<WpEntity[]>();
+      for (const t of themesApi) {
+        const slug = t?.slug || t?.id || t?.name;
+        if (typeof slug === "string") themeSlugs.add(slug);
+      }
+    } catch {
+      // ignore
+    }
     emitter.emit("progress", { message: "Checking WordPress info..." });
-    const [wpInfo, robotsTxtPresent, sitemapPresent] = await Promise.all([
+    const [
+      wpInfo,
+      robotsTxtPresent,
+      sitemapPresent,
+      pluginVulns,
+      themeVulns,
+    ] = await Promise.all([
       fetchWordPressInfo(url),
       robotsTxtExists(url),
       sitemapExists(url),
+      fetchVulnerabilities("plugin", pluginSlugs),
+      fetchVulnerabilities("theme", themeSlugs),
     ]);
     emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
     const psi = await fetchPageSpeedScores(url);
@@ -68,6 +118,9 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
       isUpToDate: wpInfo.isUpToDate,
+       plugins: Array.from(pluginSlugs),
+       themes: Array.from(themeSlugs),
+       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
       ...psi,
     };
     await prisma.audit.update({

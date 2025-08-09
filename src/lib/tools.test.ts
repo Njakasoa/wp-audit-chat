@@ -1,16 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import nock from "nock";
-import { fetchWordPressInfo, fetchPageSpeedScores } from "./tools";
+import {
+  fetchWordPressInfo,
+  fetchPageSpeedScores,
+  fetchVulnerabilities,
+} from "./tools";
 
 const ORIGINAL_API_KEY = process.env.PAGESPEED_API_KEY;
+const ORIGINAL_WPSCAN_TOKEN = process.env.WPSCAN_API_TOKEN;
+const ORIGINAL_WPVULNDB_TOKEN = process.env.WPVULNDB_API_TOKEN;
 
 beforeEach(() => {
   delete process.env.PAGESPEED_API_KEY;
+  delete process.env.WPSCAN_API_TOKEN;
+  delete process.env.WPVULNDB_API_TOKEN;
 });
 
 afterEach(() => {
   nock.cleanAll();
   process.env.PAGESPEED_API_KEY = ORIGINAL_API_KEY;
+  process.env.WPSCAN_API_TOKEN = ORIGINAL_WPSCAN_TOKEN;
+  process.env.WPVULNDB_API_TOKEN = ORIGINAL_WPVULNDB_TOKEN;
 });
 
 describe("fetchWordPressInfo", () => {
@@ -125,5 +135,38 @@ describe("fetchPageSpeedScores", () => {
       bestPractices: 0.3,
       seo: 0.4,
     });
+  });
+});
+
+describe("fetchVulnerabilities", () => {
+  it("parses vulnerabilities", async () => {
+    process.env.WPSCAN_API_TOKEN = "token123";
+    nock("https://wpscan.com")
+      .get("/api/v3/plugins/test")
+      .matchHeader("Authorization", "Token token=token123")
+      .reply(200, {
+        vulnerabilities: [
+          {
+            fixed_in: "1.2.3",
+            cvss: { score: 9.1 },
+            references: { url: ["https://example.com"] },
+          },
+        ],
+      });
+    const res = await fetchVulnerabilities("plugin", ["test"]);
+    expect(res).toEqual({
+      test: [
+        {
+          severity: "critical",
+          fixedIn: "1.2.3",
+          references: ["https://example.com"],
+        },
+      ],
+    });
+  });
+
+  it("returns empty without token", async () => {
+    const res = await fetchVulnerabilities("plugin", ["test"]);
+    expect(res).toEqual({});
   });
 });
