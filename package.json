@@ -11,8 +11,6 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.1",
-    "@prisma/adapter-neon": "^6.13.0",
     "@prisma/client": "6.13.0",
     "@radix-ui/react-slot": "1.2.3",
     "@react-pdf/renderer": "4.3.0",
