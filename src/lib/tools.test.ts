@@ -15,15 +15,48 @@ afterEach(() => {
 
 describe("fetchWordPressInfo", () => {
   it("detects WordPress sites", async () => {
-    nock("https://example.com").get("/wp-json").reply(200, { name: "Example" });
+    nock("https://example.com")
+      .get("/wp-json")
+      .reply(200, { name: "Example" })
+      .get("/")
+      .reply(200, "<meta name=\"generator\" content=\"WordPress 6.5.2\">");
+    nock("https://api.wordpress.org")
+      .get("/core/stable-check/1.0/")
+      .query({ version: "6.5.2" })
+      .reply(200, { "6.5.2": "latest" });
     const info = await fetchWordPressInfo("https://example.com");
-    expect(info).toEqual({ isWordPress: true, name: "Example" });
+    expect(info).toEqual({
+      isWordPress: true,
+      name: "Example",
+      wpVersion: "6.5.2",
+      isUpToDate: true,
+    });
   });
 
   it("returns false for non-WordPress", async () => {
-    nock("https://notwp.com").get("/wp-json").reply(404);
+    nock("https://notwp.com")
+      .get("/wp-json")
+      .reply(404)
+      .get("/")
+      .reply(200, "<html></html>");
     const info = await fetchWordPressInfo("https://notwp.com");
     expect(info.isWordPress).toBe(false);
+    expect(info.wpVersion).toBeUndefined();
+  });
+
+  it("flags outdated WordPress versions", async () => {
+    nock("https://oldwp.com")
+      .get("/wp-json")
+      .reply(200, { name: "Old" })
+      .get("/")
+      .reply(200, "<meta name=\"generator\" content=\"WordPress 5.0\">");
+    nock("https://api.wordpress.org")
+      .get("/core/stable-check/1.0/")
+      .query({ version: "5.0" })
+      .reply(200, { "5.0": "insecure" });
+    const info = await fetchWordPressInfo("https://oldwp.com");
+    expect(info.isWordPress).toBe(true);
+    expect(info.isUpToDate).toBe(false);
   });
 });
 
