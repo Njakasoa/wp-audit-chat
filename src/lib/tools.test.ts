@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import nock from "nock";
 import { fetchWordPressInfo, fetchPageSpeedScores } from "./tools";
 
+const ORIGINAL_API_KEY = process.env.PAGESPEED_API_KEY;
+
+beforeEach(() => {
+  delete process.env.PAGESPEED_API_KEY;
+});
+
 afterEach(() => {
   nock.cleanAll();
+  process.env.PAGESPEED_API_KEY = ORIGINAL_API_KEY;
 });
 
 describe("fetchWordPressInfo", () => {
@@ -35,6 +42,31 @@ describe("fetchPageSpeedScores", () => {
     nock("https://www.googleapis.com")
       .get("/pagespeedonline/v5/runPagespeed")
       .query({ url: "https://example.com" })
+      .reply(200, sample);
+    const scores = await fetchPageSpeedScores("https://example.com");
+    expect(scores).toEqual({
+      performance: 0.1,
+      accessibility: 0.2,
+      bestPractices: 0.3,
+      seo: 0.4,
+    });
+  });
+
+  it("includes API key when set", async () => {
+    const sample = {
+      lighthouseResult: {
+        categories: {
+          performance: { score: 0.1 },
+          accessibility: { score: 0.2 },
+          "best-practices": { score: 0.3 },
+          seo: { score: 0.4 },
+        },
+      },
+    };
+    process.env.PAGESPEED_API_KEY = "test123";
+    nock("https://www.googleapis.com")
+      .get("/pagespeedonline/v5/runPagespeed")
+      .query({ url: "https://example.com", key: "test123" })
       .reply(200, sample);
     const scores = await fetchPageSpeedScores("https://example.com");
     expect(scores).toEqual({
