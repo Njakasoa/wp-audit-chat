@@ -2,6 +2,8 @@
 
 Next.js app that audits WordPress sites and streams progress.
 
+Uses [Prisma](https://www.prisma.io/) with a [Neon](https://neon.tech/) Postgres database.
+
 ## Setup
 
 1. Install Node using [nvm](https://github.com/nvm-sh/nvm):
@@ -9,7 +11,8 @@ Next.js app that audits WordPress sites and streams progress.
    nvm use
    node --version
    npm install
-   npx prisma generate # initialize Prisma client if needed
+   cp .env.example .env # set DATABASE_URL for Neon
+   npx prisma generate # initialize Prisma client
    npm run dev
    ```
 
