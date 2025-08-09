@@ -41,7 +41,15 @@ describe("fetchPageSpeedScores", () => {
     };
     nock("https://www.googleapis.com")
       .get("/pagespeedonline/v5/runPagespeed")
-      .query({ url: "https://example.com" })
+      .query({
+        url: "https://example.com",
+        category: [
+          "performance",
+          "accessibility",
+          "best-practices",
+          "seo",
+        ],
+      })
       .reply(200, sample);
     const scores = await fetchPageSpeedScores("https://example.com");
     expect(scores).toEqual({
@@ -66,7 +74,16 @@ describe("fetchPageSpeedScores", () => {
     process.env.PAGESPEED_API_KEY = "test123";
     nock("https://www.googleapis.com")
       .get("/pagespeedonline/v5/runPagespeed")
-      .query({ url: "https://example.com", key: "test123" })
+      .query({
+        url: "https://example.com",
+        category: [
+          "performance",
+          "accessibility",
+          "best-practices",
+          "seo",
+        ],
+        key: "test123",
+      })
       .reply(200, sample);
     const scores = await fetchPageSpeedScores("https://example.com");
     expect(scores).toEqual({
