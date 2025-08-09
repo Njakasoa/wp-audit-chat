@@ -39,7 +39,12 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
   };
   try {
     const res = await got("https://www.googleapis.com/pagespeedonline/v5/runPagespeed", {
-      searchParams: { url: siteUrl },
+      searchParams: {
+        url: siteUrl,
+        ...(process.env.PAGESPEED_API_KEY
+          ? { key: process.env.PAGESPEED_API_KEY }
+          : {}),
+      },
       timeout: { request: 15000 },
       retry: { limit: 1 },
     }).json<{ lighthouseResult?: { categories?: Record<string, { score?: number }> } }>();
