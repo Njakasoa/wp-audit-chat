@@ -38,13 +38,18 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
     seo: null,
   };
   try {
+    const searchParams = new URLSearchParams([
+      ["url", siteUrl],
+      ["category", "performance"],
+      ["category", "accessibility"],
+      ["category", "best-practices"],
+      ["category", "seo"],
+    ]);
+    if (process.env.PAGESPEED_API_KEY) {
+      searchParams.append("key", process.env.PAGESPEED_API_KEY);
+    }
     const res = await got("https://www.googleapis.com/pagespeedonline/v5/runPagespeed", {
-      searchParams: {
-        url: siteUrl,
-        ...(process.env.PAGESPEED_API_KEY
-          ? { key: process.env.PAGESPEED_API_KEY }
-          : {}),
-      },
+      searchParams,
       timeout: { request: 15000 },
       retry: { limit: 1 },
     }).json<{ lighthouseResult?: { categories?: Record<string, { score?: number }> } }>();
