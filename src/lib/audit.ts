@@ -12,6 +12,12 @@ import {
 
 const emitters = new Map<string, EventEmitter>();
 
+interface WpEntity {
+  slug?: string;
+  id?: string | number;
+  name?: string;
+}
+
 export async function startAudit(url: string): Promise<string> {
   const audit = await prisma.audit.create({
     data: { url, status: "queued" },
@@ -61,7 +67,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
         timeout: { request: 8000 },
         retry: { limit: 1 },
         headers: { "user-agent": "WP-Audit-Chat" },
-      }).json<any[]>();
+      }).json<WpEntity[]>();
       for (const p of pluginsApi) {
         const slug = p?.slug || p?.id || p?.name;
         if (typeof slug === "string") pluginSlugs.add(slug);
@@ -74,7 +80,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
         timeout: { request: 8000 },
         retry: { limit: 1 },
         headers: { "user-agent": "WP-Audit-Chat" },
-      }).json<any[]>();
+      }).json<WpEntity[]>();
       for (const t of themesApi) {
         const slug = t?.slug || t?.id || t?.name;
         if (typeof slug === "string") themeSlugs.add(slug);

@@ -148,6 +148,16 @@ export interface Vulnerability {
   references: string[];
 }
 
+interface WpScanApiVulnerability {
+  references?: Record<string, unknown>;
+  cvss?: { score?: number };
+  fixed_in?: string;
+}
+
+interface WpScanApiResponse {
+  vulnerabilities?: WpScanApiVulnerability[];
+}
+
 function scoreToSeverity(score: number): string {
   if (score >= 9) return "critical";
   if (score >= 7) return "high";
@@ -176,7 +186,7 @@ export async function fetchVulnerabilities(
           timeout: { request: 8000 },
           retry: { limit: 1 },
         }
-      ).json<{ vulnerabilities?: any[] }>();
+      ).json<WpScanApiResponse>();
 
       const vulns = res.vulnerabilities ?? [];
       results[slug] = vulns.map((v) => {
