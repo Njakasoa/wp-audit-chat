@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
 
   async function start() {
     setMessages([]);
@@ -17,7 +17,7 @@ export default function Home() {
     const es = new EventSource(`/api/audit/${auditId}`);
     es.onmessage = (ev) => {
       const data = JSON.parse(ev.data);
-      setMessages((m) => [...m, JSON.stringify(data)]);
+      setMessages((m) => [...m, data]);
       if (data.status === "done" || data.status === "error") {
         es.close();
       }
@@ -38,7 +38,10 @@ export default function Home() {
       <div className="flex flex-col space-y-2">
         {messages.map((m, i) => (
           <div key={i} className="p-2 rounded border ">
-            {m}
+            <pre>{JSON.stringify(m)}</pre>
+            {m.imagesWithoutAlt !== undefined && (
+              <div>Images without alt: {m.imagesWithoutAlt}</div>
+            )}
           </div>
         ))}
       </div>
