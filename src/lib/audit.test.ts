@@ -29,7 +29,7 @@ describe("audit images without alt", () => {
     nock("https://example.com").get("/").reply(200, html);
     const id = await startAudit("https://example.com");
     const emitter = getEmitter(id)!;
-    const data: any = await new Promise((resolve) => {
+    const data = await new Promise<{ imagesWithoutAlt: number }>((resolve) => {
       emitter.on("done", resolve);
     });
     expect(data.imagesWithoutAlt).toBe(2);
@@ -40,7 +40,7 @@ describe("audit images without alt", () => {
     nock("https://example.org").get("/").reply(200, html);
     const id = await startAudit("https://example.org");
     const emitter = getEmitter(id)!;
-    const data: any = await new Promise((resolve) => {
+    const data = await new Promise<{ imagesWithoutAlt: number }>((resolve) => {
       emitter.on("done", resolve);
     });
     expect(data.imagesWithoutAlt).toBe(0);

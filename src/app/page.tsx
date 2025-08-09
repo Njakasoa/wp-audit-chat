@@ -4,7 +4,14 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [messages, setMessages] = useState<any[]>([]);
+  type AuditMessage = {
+    message?: string;
+    status?: string;
+    summary?: unknown;
+    imagesWithoutAlt?: number;
+    [key: string]: unknown;
+  };
+  const [messages, setMessages] = useState<AuditMessage[]>([]);
 
   async function start() {
     setMessages([]);
@@ -16,7 +23,7 @@ export default function Home() {
     const { auditId } = await res.json();
     const es = new EventSource(`/api/audit/${auditId}`);
     es.onmessage = (ev) => {
-      const data = JSON.parse(ev.data);
+      const data: AuditMessage = JSON.parse(ev.data);
       setMessages((m) => [...m, data]);
       if (data.status === "done" || data.status === "error") {
         es.close();
