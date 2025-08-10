@@ -15,9 +15,10 @@ import {
   checkDirectoryListing,
   checkWpConfigBackup,
   fetchLatestVersion,
+  fetchStructuredData,
 } from "@/lib/tools";
 import { fetchSslInfo, fetchSslLabs } from "@/lib/ssl";
-import { checkBrokenLinks } from "./links";
+import { checkBrokenLinks, checkBrokenImages } from "./links";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -65,7 +66,33 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       .map((v) => `${v.id}: ${v.description}`);
     const title = $("title").first().text().trim();
     const metaDesc = $('meta[name="description"]').attr("content");
+    const canonicalUrl = $('link[rel="canonical"]').attr("href") || null;
+    const robotsMeta = $('meta[name="robots"]').attr("content") || null;
+    const robotsNoindex = robotsMeta ? /noindex/i.test(robotsMeta) : false;
+    const robotsNofollow = robotsMeta ? /nofollow/i.test(robotsMeta) : false;
+    const ogTags: Record<string, string> = {};
+    $('meta[property^="og:"], meta[name^="og:"]').each((_, el) => {
+      const prop = $(el).attr("property") || $(el).attr("name");
+      const content = $(el).attr("content");
+      if (prop && content) ogTags[prop.toLowerCase()] = content;
+    });
+    const twitterTags: Record<string, string> = {};
+    $('meta[name^="twitter:"]').each((_, el) => {
+      const name = $(el).attr("name");
+      const content = $(el).attr("content");
+      if (name && content) twitterTags[name.toLowerCase()] = content;
+    });
+    const requiredOg = ["og:title", "og:description", "og:image"];
+    const requiredTwitter = [
+      "twitter:card",
+      "twitter:title",
+      "twitter:description",
+      "twitter:image",
+    ];
+    const missingOpenGraph = requiredOg.filter((t) => !ogTags[t]);
+    const missingTwitter = requiredTwitter.filter((t) => !twitterTags[t]);
     const h1Count = $("h1").length;
+    const hasMultipleH1 = h1Count !== 1;
     const imagesWithoutAlt = $('img:not([alt]), img[alt=""]').length;
     const jsAssetCount = $('script[src]').length;
     const cssAssetCount = $('link[rel="stylesheet"]').length;
@@ -208,6 +235,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     }
     emitter.emit("progress", { message: "Checking for broken links..." });
     const { broken: brokenLinks } = await checkBrokenLinks(url, res.body);
+    emitter.emit("progress", { message: "Checking for broken images..." });
+    const { broken: brokenImages } = await checkBrokenImages(url, res.body);
     emitter.emit("progress", { message: "Checking WordPress info..." });
     const [
       wpInfo,
@@ -219,6 +248,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       userEnumerationEnabled,
       directoryListing,
       wpConfigBakExposed,
+      structuredData,
     ] = await Promise.all([
       fetchWordPressInfo(url),
       robotsTxtExists(url),
@@ -229,6 +259,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       checkUserEnumeration(url),
       checkDirectoryListing(url),
       checkWpConfigBackup(url),
+      fetchStructuredData(url),
     ]);
 
     const pluginDetails = await Promise.all(
@@ -253,10 +284,21 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       status: res.statusCode,
       title,
       metaDescPresent: Boolean(metaDesc),
+      canonicalUrl,
+      robotsMeta,
+      robotsNoindex,
+      robotsNofollow,
+      openGraph: ogTags,
+      twitterCard: twitterTags,
+      missingOpenGraph,
+      missingTwitter,
       h1Count,
+      hasMultipleH1,
       imagesWithoutAlt,
       brokenLinkCount: brokenLinks.length,
       brokenLinks,
+      brokenImageCount: brokenImages.length,
+      brokenImages,
       usesHttps,
       cookiesMissingSecure,
       cookiesMissingHttpOnly,
@@ -290,6 +332,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       plugins: pluginDetails,
       themes: themeDetails,
       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
+      structuredData: structuredData?.items ?? [],
       ...psi,
     };
     await prisma.audit.update({

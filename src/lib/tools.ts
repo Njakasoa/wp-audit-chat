@@ -196,6 +196,42 @@ export async function sitemapExists(siteUrl: string): Promise<boolean> {
   }
 }
 
+export interface StructuredDataResult {
+  items: string[];
+}
+
+/**
+ * Call Google's Rich Results Test API to parse structured data for a URL.
+ */
+export async function fetchStructuredData(
+  siteUrl: string
+): Promise<StructuredDataResult | null> {
+  try {
+    const searchParams = new URLSearchParams();
+    if (process.env.GOOGLE_API_KEY) {
+      searchParams.set("key", process.env.GOOGLE_API_KEY);
+    }
+    const res = await got
+      .post(
+        "https://searchconsole.googleapis.com/v1/testingTools/structuredData:run",
+        {
+          searchParams,
+          json: { url: siteUrl },
+          timeout: { request: 15000 },
+          retry: { limit: 1 },
+        }
+      )
+      .json<{
+        structuredData?: { items?: { type?: string }[] };
+      }>();
+    const items =
+      res.structuredData?.items?.map((i) => i.type).filter(Boolean) ?? [];
+    return { items: items as string[] };
+  } catch {
+    return null;
+  }
+}
+
 export interface Vulnerability {
   severity: string | null;
   fixedIn?: string;

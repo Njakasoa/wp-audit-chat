@@ -6,6 +6,7 @@ import {
   fetchLatestVersion,
   checkDirectoryListing,
   checkWpConfigBackup,
+  fetchStructuredData,
 } from "@/lib/tools";
 
 vi.mock("@/lib/prisma", () => {
@@ -32,6 +33,7 @@ vi.mock("@/lib/tools", async () => {
     fetchLatestVersion: vi.fn().mockResolvedValue(null),
     checkDirectoryListing: vi.fn().mockResolvedValue(false),
     checkWpConfigBackup: vi.fn().mockResolvedValue(false),
+    fetchStructuredData: vi.fn().mockResolvedValue({ items: [] }),
   };
 });
 
@@ -316,6 +318,81 @@ describe("broken links", () => {
       emitter.on("done", resolve);
     });
     expect(data.brokenLinks).toEqual(["https://broken.test/bad"]);
+  });
+});
+
+describe("seo checks", () => {
+  it("parses canonical, robots, social tags, and structured data", async () => {
+    vi.mocked(fetchStructuredData).mockResolvedValueOnce({ items: ["Article"] });
+    const html =
+      `<!doctype html>` +
+      `<link rel="canonical" href="https://social.test/">` +
+      `<meta name="robots" content="noindex,nofollow">` +
+      `<meta property="og:title" content="OG Title">` +
+      `<meta name="twitter:card" content="summary">`;
+    nock("https://social.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://social.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      canonicalUrl: string | null;
+      robotsNoindex: boolean;
+      robotsNofollow: boolean;
+      openGraph: Record<string, string>;
+      twitterCard: Record<string, string>;
+      missingOpenGraph: string[];
+      missingTwitter: string[];
+      structuredData: string[];
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.canonicalUrl).toBe("https://social.test/");
+    expect(data.robotsNoindex).toBe(true);
+    expect(data.robotsNofollow).toBe(true);
+    expect(data.openGraph["og:title"]).toBe("OG Title");
+    expect(data.missingOpenGraph).toContain("og:description");
+    expect(data.twitterCard["twitter:card"]).toBe("summary");
+    expect(data.missingTwitter).toContain("twitter:title");
+    expect(data.structuredData).toEqual(["Article"]);
+  });
+
+  it("flags multiple h1 tags and broken images", async () => {
+    const html =
+      `<!doctype html>` +
+      `<h1>One</h1><h1>Two</h1>` +
+      `<img src="/good.jpg"><img src="/bad.jpg">`;
+    nock("https://images.test")
+      .get("/")
+      .reply(200, html)
+      .head("/good.jpg")
+      .reply(200)
+      .head("/bad.jpg")
+      .reply(404)
+      .get("/bad.jpg")
+      .reply(404)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://images.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      h1Count: number;
+      hasMultipleH1: boolean;
+      brokenImages: string[];
+      brokenImageCount: number;
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.h1Count).toBe(2);
+    expect(data.hasMultipleH1).toBe(true);
+    expect(data.brokenImageCount).toBe(1);
+    expect(data.brokenImages[0]).toBe("https://images.test/bad.jpg");
   });
 });
 
