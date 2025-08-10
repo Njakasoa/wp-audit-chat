@@ -99,7 +99,27 @@ describe("additional checks", () => {
     expect(data.robotsTxtPresent).toBe(true);
     expect(data.sitemapPresent).toBe(false);
     expect(data.missingSecurityHeaders).toContain("content-security-policy");
+    expect(data.missingSecurityHeaders).toContain("permissions-policy");
     expect(data.usesHttps).toBe(true);
+  });
+
+  it("flags misconfigured security headers", async () => {
+    const html = `<!doctype html>`;
+    nock("https://badheaders.test")
+      .get("/")
+      .reply(200, html, { "x-frame-options": "allow-from http://evil.com" })
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://badheaders.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      misconfiguredSecurityHeaders: string[];
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.misconfiguredSecurityHeaders).toContain("x-frame-options");
   });
 });
 
