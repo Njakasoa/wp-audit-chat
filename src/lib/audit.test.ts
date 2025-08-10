@@ -34,6 +34,7 @@ vi.mock("@/lib/tools", async () => {
     checkDirectoryListing: vi.fn().mockResolvedValue(false),
     checkWpConfigBackup: vi.fn().mockResolvedValue(false),
     fetchStructuredData: vi.fn().mockResolvedValue({ items: [] }),
+    checkSafeBrowsing: vi.fn().mockResolvedValue([]),
   };
 });
 

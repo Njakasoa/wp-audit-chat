@@ -13,6 +13,7 @@ Uses [Prisma](https://www.prisma.io/) with a SQLite database file.
    npm install
    cp .env.example .env # sets DATABASE_URL for SQLite
    # add your PageSpeed Insights API key to .env as PAGESPEED_API_KEY
+   # add your Safe Browsing API key to .env as SAFE_BROWSING_API_KEY
    npx prisma db push # create the dev.db SQLite file
    npm run dev
    ```

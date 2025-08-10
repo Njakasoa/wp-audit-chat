@@ -414,3 +414,42 @@ export async function fetchLatestVersion(
   }
 }
 
+export async function checkSafeBrowsing(
+  siteUrl: string
+): Promise<string[]> {
+  const apiKey = process.env.SAFE_BROWSING_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const res = await got
+      .post(
+        "https://safebrowsing.googleapis.com/v4/threatMatches:find",
+        {
+          searchParams: { key: apiKey },
+          json: {
+            client: { clientId: "wp-audit-chat", clientVersion: "1.0" },
+            threatInfo: {
+              threatTypes: [
+                "MALWARE",
+                "SOCIAL_ENGINEERING",
+                "UNWANTED_SOFTWARE",
+                "POTENTIALLY_HARMFUL_APPLICATION",
+              ],
+              platformTypes: ["ANY_PLATFORM"],
+              threatEntryTypes: ["URL"],
+              threatEntries: [{ url: siteUrl }],
+            },
+          },
+          timeout: { request: 8000 },
+          retry: { limit: 1 },
+          headers: { "user-agent": "WP-Audit-Chat" },
+        }
+      )
+      .json<{ threatMatches?: { threatType?: string }[] }>();
+    return (
+      res.threatMatches?.map((m) => m.threatType || "").filter(Boolean) ?? []
+    );
+  } catch {
+    return [];
+  }
+}
+
