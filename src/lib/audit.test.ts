@@ -18,7 +18,7 @@ vi.mock("@/lib/tools", async () => {
   const actual = await vi.importActual<typeof import("./tools")>("./tools");
   return {
     ...actual,
-    fetchWordPressInfo: vi.fn().mockResolvedValue({ isWordPress: false }),
+    fetchWordPressInfo: vi.fn().mockResolvedValue({ isWordPress: false, caching: [] }),
     fetchPageSpeedScores: vi.fn().mockResolvedValue({}),
     fetchVulnerabilities: vi.fn().mockResolvedValue({}),
   };
