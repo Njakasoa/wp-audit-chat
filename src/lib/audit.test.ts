@@ -202,3 +202,26 @@ describe("accessibility", () => {
     expect(data.accessibilityViolations[0]).toContain("image-alt");
   });
 });
+
+describe("structured data", () => {
+  it("reports invalid schemas", async () => {
+    const html = `<!doctype html><script type="application/ld+json">{invalid</script>`;
+    nock("https://schema.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://schema.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      structuredDataPresent: boolean;
+      invalidSchemaCount: number;
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.structuredDataPresent).toBe(true);
+    expect(data.invalidSchemaCount).toBe(1);
+  });
+});

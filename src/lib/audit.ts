@@ -13,6 +13,7 @@ import {
 } from "@/lib/tools";
 import { fetchSslInfo } from "@/lib/ssl";
 import { checkBrokenLinks } from "./links";
+import { validateSchemas } from "./schema";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -85,6 +86,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       })
       .map(([header]) => header);
     const sslInfo = usesHttps ? await fetchSslInfo(url) : null;
+    const schemaResults = validateSchemas(res.body);
 
     const pluginSlugs = new Set<string>();
     const themeSlugs = new Set<string>();
@@ -150,6 +152,9 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       robotsTxtPresent,
       sitemapPresent,
       ssl: sslInfo,
+      structuredDataPresent: schemaResults.structuredDataPresent,
+      invalidSchemaCount: schemaResults.invalidSchemas.length,
+      schemaErrors: schemaResults.invalidSchemas,
       accessibilityViolationCount,
       accessibilityViolations,
       missingSecurityHeaders,
