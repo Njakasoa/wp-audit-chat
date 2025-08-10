@@ -24,6 +24,18 @@ vi.mock("@/lib/tools", async () => {
   };
 });
 
+const sslMock = vi.hoisted(() => ({
+  issuer: "Test CA",
+  validFrom: new Date().toISOString(),
+  validTo: new Date(Date.now() + 86400000).toISOString(),
+  daysUntilExpiration: 1,
+  valid: true,
+}));
+
+vi.mock("@/lib/ssl", () => ({
+  fetchSslInfo: vi.fn().mockResolvedValue(sslMock),
+}));
+
 afterEach(() => {
   nock.cleanAll();
 });
@@ -88,5 +100,24 @@ describe("additional checks", () => {
     expect(data.sitemapPresent).toBe(false);
     expect(data.missingSecurityHeaders).toContain("content-security-policy");
     expect(data.usesHttps).toBe(true);
+  });
+});
+
+describe("ssl info", () => {
+  it("includes ssl certificate details", async () => {
+    const html = `<!doctype html>`;
+    nock("https://ssl.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://ssl.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{ ssl: typeof sslMock }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.ssl).toEqual(sslMock);
   });
 });
