@@ -141,3 +141,27 @@ describe("ssl info", () => {
     expect(data.ssl).toEqual(sslMock);
   });
 });
+
+describe("broken links", () => {
+  it("reports links with 4xx/5xx status", async () => {
+    const html =
+      `<!doctype html><a href=\"/ok\">ok</a><a href=\"/bad\">bad</a>`;
+    nock("https://broken.test")
+      .get("/")
+      .reply(200, html)
+      .head("/ok")
+      .reply(200)
+      .head("/bad")
+      .reply(404)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://broken.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{ brokenLinks: string[] }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.brokenLinks).toEqual(["https://broken.test/bad"]);
+  });
+});

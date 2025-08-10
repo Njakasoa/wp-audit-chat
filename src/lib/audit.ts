@@ -10,6 +10,7 @@ import {
   sitemapExists,
 } from "@/lib/tools";
 import { fetchSslInfo } from "@/lib/ssl";
+import { checkBrokenLinks } from "./links";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -111,6 +112,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     } catch {
       // ignore
     }
+    emitter.emit("progress", { message: "Checking for broken links..." });
+    const { broken: brokenLinks } = await checkBrokenLinks(url, res.body);
     emitter.emit("progress", { message: "Checking WordPress info..." });
     const [
       wpInfo,
@@ -133,6 +136,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       metaDescPresent: Boolean(metaDesc),
       h1Count,
       imagesWithoutAlt,
+      brokenLinkCount: brokenLinks.length,
+      brokenLinks,
       usesHttps,
       robotsTxtPresent,
       sitemapPresent,
@@ -143,9 +148,9 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
       isUpToDate: wpInfo.isUpToDate,
-       plugins: Array.from(pluginSlugs),
-       themes: Array.from(themeSlugs),
-       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
+      plugins: Array.from(pluginSlugs),
+      themes: Array.from(themeSlugs),
+      vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
       ...psi,
     };
     await prisma.audit.update({
