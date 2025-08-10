@@ -9,6 +9,8 @@ export default function Home() {
     status?: string;
     summary?: unknown;
     imagesWithoutAlt?: number;
+    missingSecurityHeaders?: string[];
+    misconfiguredSecurityHeaders?: string[];
     [key: string]: unknown;
   };
   const [messages, setMessages] = useState<AuditMessage[]>([]);
@@ -45,6 +47,27 @@ export default function Home() {
       <div className="flex flex-col space-y-2">
         {messages.map((m, i) => (
           <div key={i} className="p-2 rounded border ">
+            {m.missingSecurityHeaders && m.missingSecurityHeaders.length > 0 && (
+              <div className="mb-2">
+                <strong>Missing security headers:</strong>
+                <ul className="list-disc ml-5">
+                  {m.missingSecurityHeaders.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {m.misconfiguredSecurityHeaders &&
+              m.misconfiguredSecurityHeaders.length > 0 && (
+                <div className="mb-2">
+                  <strong>Misconfigured security headers:</strong>
+                  <ul className="list-disc ml-5">
+                    {m.misconfiguredSecurityHeaders.map((h) => (
+                      <li key={h}>{h}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             <pre>{JSON.stringify(m)}</pre>
           </div>
         ))}

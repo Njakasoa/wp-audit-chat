@@ -50,10 +50,31 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       "x-content-type-options",
       "strict-transport-security",
       "referrer-policy",
+      "permissions-policy",
+      "cross-origin-opener-policy",
+      "cross-origin-embedder-policy",
     ];
+    const recommendedSecurityHeaderValues: Record<string, string[]> = {
+      "x-frame-options": ["deny", "sameorigin"],
+      "x-content-type-options": ["nosniff"],
+      "cross-origin-opener-policy": ["same-origin"],
+      "cross-origin-embedder-policy": ["require-corp"],
+    };
     const missingSecurityHeaders = requiredSecurityHeaders.filter(
       (h) => !res.headers[h as keyof typeof res.headers]
     );
+    const misconfiguredSecurityHeaders = Object.entries(
+      recommendedSecurityHeaderValues
+    )
+      .filter(([header, values]) => {
+        const actual = res.headers[header as keyof typeof res.headers];
+        if (!actual) return false;
+        const lower = Array.isArray(actual)
+          ? actual.join(",").toLowerCase()
+          : String(actual).toLowerCase();
+        return !values.some((v) => lower.includes(v));
+      })
+      .map(([header]) => header);
     const sslInfo = usesHttps ? await fetchSslInfo(url) : null;
 
     const pluginSlugs = new Set<string>();
@@ -117,6 +138,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       sitemapPresent,
       ssl: sslInfo,
       missingSecurityHeaders,
+      misconfiguredSecurityHeaders,
       isWordPress: wpInfo.isWordPress,
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
