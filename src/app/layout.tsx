@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased text-foreground bg-transparent">
+      <body className={`antialiased text-foreground bg-transparent ${geistSans.variable} ${geistMono.variable}`}>
         {/* One gradient layer for the whole app */}
         <div aria-hidden className="bg-animated-gradient" />
         <div className="relative min-h-screen">{children}</div>
@@ -28,4 +28,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-

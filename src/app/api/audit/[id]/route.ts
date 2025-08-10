@@ -37,12 +37,12 @@ export async function GET(
 
       if (emitter) {
         const onProgress = (d: unknown) => send(d);
-        const onDone = (d: any) => {
+        const onDone = (d: Record<string, unknown>) => {
           send({ status: "done", ...d });
           cleanup();
           controller.close();
         };
-        const onError = (d: any) => {
+        const onError = (d: Record<string, unknown>) => {
           send({ status: "error", ...d });
           cleanup();
           controller.close();

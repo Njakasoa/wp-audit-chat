@@ -1,15 +1,32 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
+type Summary = {
+  canonicalUrl?: string | null;
+  name?: string | null;
+  brokenLinkCount?: number;
+  imagesWithoutAlt?: number;
+  missingSecurityHeaders?: unknown[];
+  accessibilityViolationCount?: number;
+  performance?: number;
+  accessibility?: number;
+  bestPractices?: number;
+  seo?: number;
+  misconfiguredSecurityHeaders?: unknown[];
+  xmlRpcEnabled?: boolean;
+  userEnumerationEnabled?: boolean;
+  brokenImageCount?: number;
+  [key: string]: unknown;
+} | null;
+
 type Props = {
-  id: string;
-  summary: any;
+  summary: Summary;
 };
 
-export default function SummaryView({ id, summary }: Props) {
+export default function SummaryView({ summary }: Props) {
   const scores = useMemo(() => {
     const s = summary || {};
-    const clamp = (v: any) => (typeof v === "number" ? Math.max(0, Math.min(1, v)) : 0);
+    const clamp = (v: unknown) => (typeof v === "number" ? Math.max(0, Math.min(1, v)) : 0);
     return {
       performance: clamp(s.performance),
       accessibility: clamp(s.accessibility),
@@ -96,7 +113,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function ListRow({ label, value }: { label: string; value: any }) {
+function ListRow({ label, value }: { label: string; value: unknown }) {
   return (
     <div className="flex items-center justify-between py-1 text-sm">
       <span className="text-muted-foreground">{label}</span>

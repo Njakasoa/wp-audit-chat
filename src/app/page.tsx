@@ -67,7 +67,13 @@ export default function Home() {
         setChat((c) => c);
       };
       es.onmessage = (ev) => {
-        const data = JSON.parse(ev.data) as Record<string, any>;
+        type AuditEvent = {
+          status?: "done" | "error" | string;
+          message?: string;
+          step?: string;
+          [key: string]: unknown;
+        };
+        const data = JSON.parse(ev.data) as AuditEvent;
         if (data.message || data.step) {
           setChat((c) => replaceLastTyping(c, {
             id: crypto.randomUUID(),
@@ -264,7 +270,7 @@ function nextTypingText(step?: string) {
   return base;
 }
 
-function buildResultMessage(url: string, data: Record<string, any>, id?: string): ChatItem {
+function buildResultMessage(url: string, data: Record<string, unknown>, id?: string): ChatItem {
   return {
     id: crypto.randomUUID(),
     role: "assistant",
@@ -284,7 +290,6 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 function ChatBubble({ item }: { item: ChatItem }) {
-  const isUser = item.role === "user";
   const base = "animate-in fade-in slide-in-from-bottom-2";
   if (item.type === "result") {
     const p = item.payload || {};
@@ -293,7 +298,7 @@ function ChatBubble({ item }: { item: ChatItem }) {
       p.imagesWithoutAlt != null ? `${p.imagesWithoutAlt} images without alt` : null,
       p.brokenLinkCount != null ? `${p.brokenLinkCount} broken links` : null,
       Array.isArray(p.missingSecurityHeaders)
-        ? `${(p.missingSecurityHeaders as any[]).length} missing security headers`
+        ? `${(p.missingSecurityHeaders as unknown[]).length} missing security headers`
         : null,
       p.accessibilityViolationCount != null
         ? `${p.accessibilityViolationCount} a11y violations`

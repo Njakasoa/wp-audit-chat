@@ -70,14 +70,26 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     };
     try {
       // First try direct run (works in tests where axe is mocked)
-      axeResults = await (axe as unknown as { run: Function }).run(
-        dom.window.document
-      );
+      type AxeLike = {
+        run(node: unknown): Promise<{
+          violations: { id: string; description: string }[];
+        }>;
+      };
+      axeResults = await (axe as unknown as AxeLike).run(dom.window.document);
     } catch {
       // Fallback for Node: inject axe source into JSDOM and run there
       try {
-        (dom.window as any).eval((axe as any).source);
-        axeResults = await (dom.window as any).axe.run(dom.window.document);
+        const win = dom.window as unknown as {
+          eval: (code: string) => unknown;
+          axe?: { run: (node: unknown) => Promise<{ violations: { id: string; description: string }[] }> };
+        };
+        const axeSource = (axe as unknown as { source: string }).source;
+        win.eval(axeSource);
+        if (win.axe) {
+          axeResults = await win.axe.run(dom.window.document);
+        } else {
+          axeResults = { violations: [] };
+        }
       } catch {
         axeResults = { violations: [] };
       }
