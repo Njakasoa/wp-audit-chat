@@ -9,16 +9,19 @@ import {
   fetchLatestVersion,
   checkDirectoryListing,
   checkWpConfigBackup,
+  checkSafeBrowsing,
 } from "./tools";
 
 const ORIGINAL_API_KEY = process.env.PAGESPEED_API_KEY;
 const ORIGINAL_WPSCAN_TOKEN = process.env.WPSCAN_API_TOKEN;
 const ORIGINAL_WPVULNDB_TOKEN = process.env.WPVULNDB_API_TOKEN;
+const ORIGINAL_SAFE_BROWSING_KEY = process.env.SAFE_BROWSING_API_KEY;
 
 beforeEach(() => {
   delete process.env.PAGESPEED_API_KEY;
   delete process.env.WPSCAN_API_TOKEN;
   delete process.env.WPVULNDB_API_TOKEN;
+  delete process.env.SAFE_BROWSING_API_KEY;
 });
 
 afterEach(() => {
@@ -26,6 +29,7 @@ afterEach(() => {
   process.env.PAGESPEED_API_KEY = ORIGINAL_API_KEY;
   process.env.WPSCAN_API_TOKEN = ORIGINAL_WPSCAN_TOKEN;
   process.env.WPVULNDB_API_TOKEN = ORIGINAL_WPVULNDB_TOKEN;
+  process.env.SAFE_BROWSING_API_KEY = ORIGINAL_SAFE_BROWSING_KEY;
 });
 
 describe("fetchWordPressInfo", () => {
@@ -289,5 +293,32 @@ describe("checkWpConfigBackup", () => {
     nock("https://nobackup.test").get("/wp-config.php.bak").reply(404);
     const res = await checkWpConfigBackup("https://nobackup.test");
     expect(res).toBe(false);
+  });
+});
+
+describe("checkSafeBrowsing", () => {
+  it("returns threat types when flagged", async () => {
+    process.env.SAFE_BROWSING_API_KEY = "key";
+    nock("https://safebrowsing.googleapis.com")
+      .post("/v4/threatMatches:find")
+      .query({ key: "key" })
+      .reply(200, { threatMatches: [{ threatType: "MALWARE" }] });
+    const threats = await checkSafeBrowsing("https://malware.test");
+    expect(threats).toEqual(["MALWARE"]);
+  });
+
+  it("returns empty when clean", async () => {
+    process.env.SAFE_BROWSING_API_KEY = "key";
+    nock("https://safebrowsing.googleapis.com")
+      .post("/v4/threatMatches:find")
+      .query({ key: "key" })
+      .reply(200, {});
+    const threats = await checkSafeBrowsing("https://clean.test");
+    expect(threats).toEqual([]);
+  });
+
+  it("returns empty without API key", async () => {
+    const threats = await checkSafeBrowsing("https://no-key.test");
+    expect(threats).toEqual([]);
   });
 });

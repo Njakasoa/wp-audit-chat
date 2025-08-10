@@ -16,6 +16,7 @@ import {
   checkWpConfigBackup,
   fetchLatestVersion,
   fetchStructuredData,
+  checkSafeBrowsing,
 } from "@/lib/tools";
 import { fetchSslInfo, fetchSslLabs } from "@/lib/ssl";
 import { checkBrokenLinks, checkBrokenImages } from "./links";
@@ -237,6 +238,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const { broken: brokenLinks } = await checkBrokenLinks(url, res.body);
     emitter.emit("progress", { message: "Checking for broken images..." });
     const { broken: brokenImages } = await checkBrokenImages(url, res.body);
+    emitter.emit("progress", { message: "Checking Google Safe Browsing..." });
+    const safeBrowsingThreats = await checkSafeBrowsing(url);
     emitter.emit("progress", { message: "Checking WordPress info..." });
     const [
       wpInfo,
@@ -333,6 +336,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       themes: themeDetails,
       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
       structuredData: structuredData?.items ?? [],
+      safeBrowsingThreats,
       ...psi,
     };
     await prisma.audit.update({
