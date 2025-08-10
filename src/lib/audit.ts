@@ -54,7 +54,25 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const metaDesc = $('meta[name="description"]').attr("content");
     const h1Count = $("h1").length;
     const imagesWithoutAlt = $('img:not([alt]), img[alt=""]').length;
+    const jsAssetCount = $('script[src]').length;
+    const cssAssetCount = $('link[rel="stylesheet"]').length;
     const usesHttps = url.startsWith("https://");
+    const ttfb = res.timings?.phases.firstByte ?? null;
+    const httpVersion = res.httpVersion;
+    const supportsHttp3 = /h3/i.test(
+      Array.isArray(res.headers["alt-svc"])
+        ? res.headers["alt-svc"].join(",")
+        : String(res.headers["alt-svc"] || "")
+    );
+    const compression = Array.isArray(res.headers["content-encoding"])
+      ? res.headers["content-encoding"].join(",")
+      : (res.headers["content-encoding"] as string | undefined) || null;
+    const cacheControl = Array.isArray(res.headers["cache-control"])
+      ? res.headers["cache-control"].join(",")
+      : (res.headers["cache-control"] as string | undefined) || null;
+    const expires = Array.isArray(res.headers["expires"])
+      ? res.headers["expires"].join(",")
+      : (res.headers["expires"] as string | undefined) || null;
     const requiredSecurityHeaders = [
       "content-security-policy",
       "x-frame-options",
@@ -153,6 +171,14 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       brokenLinkCount: brokenLinks.length,
       brokenLinks,
       usesHttps,
+      ttfb,
+      httpVersion,
+      supportsHttp3,
+      compression,
+      cacheControl,
+      expires,
+      jsAssetCount,
+      cssAssetCount,
       robotsTxtPresent,
       sitemapPresent,
       ssl: sslInfo,

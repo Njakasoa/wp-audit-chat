@@ -98,6 +98,10 @@ export interface PageSpeedScores {
   accessibility: number | null;
   bestPractices: number | null;
   seo: number | null;
+  lcp: number | null;
+  fid: number | null;
+  inp: number | null;
+  cls: number | null;
 }
 
 export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedScores> {
@@ -106,6 +110,10 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
     accessibility: null,
     bestPractices: null,
     seo: null,
+    lcp: null,
+    fid: null,
+    inp: null,
+    cls: null,
   };
   try {
     const searchParams = new URLSearchParams([
@@ -122,7 +130,12 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
       searchParams,
       timeout: { request: 15000 },
       retry: { limit: 1 },
-    }).json<{ lighthouseResult?: { categories?: Record<string, { score?: number }> } }>();
+    }).json<{
+      lighthouseResult?: { categories?: Record<string, { score?: number }> };
+      loadingExperience?: {
+        metrics?: Record<string, { percentile?: number }>;
+      };
+    }>();
     const categories = res.lighthouseResult?.categories ?? {};
     const perf = categories.performance?.score;
     const access = categories.accessibility?.score;
@@ -132,6 +145,23 @@ export async function fetchPageSpeedScores(siteUrl: string): Promise<PageSpeedSc
     scores.accessibility = typeof access === "number" ? access : null;
     scores.bestPractices = typeof best === "number" ? best : null;
     scores.seo = typeof seo === "number" ? seo : null;
+
+    const metrics = res.loadingExperience?.metrics ?? {};
+    const metric = (names: string[]): number | null => {
+      for (const name of names) {
+        const m = metrics[name];
+        if (m && typeof m.percentile === "number") return m.percentile;
+      }
+      return null;
+    };
+    scores.lcp = metric(["LARGEST_CONTENTFUL_PAINT_MS"]);
+    scores.fid = metric(["FIRST_INPUT_DELAY_MS"]);
+    scores.inp = metric([
+      "EXPERIMENTAL_INTERACTION_TO_NEXT_PAINT",
+      "EXPERIMENTAL_INTERACTION_TO_NEXT_PAINT_MS",
+      "INTERACTION_TO_NEXT_PAINT_MS",
+    ]);
+    scores.cls = metric(["CUMULATIVE_LAYOUT_SHIFT_SCORE"]);
   } catch {
     // ignore errors and return null scores
   }

@@ -90,6 +90,14 @@ describe("fetchPageSpeedScores", () => {
           seo: { score: 0.4 },
         },
       },
+      loadingExperience: {
+        metrics: {
+          LARGEST_CONTENTFUL_PAINT_MS: { percentile: 2500 },
+          FIRST_INPUT_DELAY_MS: { percentile: 50 },
+          EXPERIMENTAL_INTERACTION_TO_NEXT_PAINT: { percentile: 200 },
+          CUMULATIVE_LAYOUT_SHIFT_SCORE: { percentile: 0.1 },
+        },
+      },
     };
     nock("https://www.googleapis.com")
       .get("/pagespeedonline/v5/runPagespeed")
@@ -109,6 +117,10 @@ describe("fetchPageSpeedScores", () => {
       accessibility: 0.2,
       bestPractices: 0.3,
       seo: 0.4,
+      lcp: 2500,
+      fid: 50,
+      inp: 200,
+      cls: 0.1,
     });
   });
 
@@ -120,6 +132,14 @@ describe("fetchPageSpeedScores", () => {
           accessibility: { score: 0.2 },
           "best-practices": { score: 0.3 },
           seo: { score: 0.4 },
+        },
+      },
+      loadingExperience: {
+        metrics: {
+          LARGEST_CONTENTFUL_PAINT_MS: { percentile: 2500 },
+          FIRST_INPUT_DELAY_MS: { percentile: 50 },
+          EXPERIMENTAL_INTERACTION_TO_NEXT_PAINT: { percentile: 200 },
+          CUMULATIVE_LAYOUT_SHIFT_SCORE: { percentile: 0.1 },
         },
       },
     };
@@ -143,6 +163,10 @@ describe("fetchPageSpeedScores", () => {
       accessibility: 0.2,
       bestPractices: 0.3,
       seo: 0.4,
+      lcp: 2500,
+      fid: 50,
+      inp: 200,
+      cls: 0.1,
     });
   });
 });
