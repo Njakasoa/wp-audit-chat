@@ -9,6 +9,7 @@ import {
   robotsTxtExists,
   sitemapExists,
 } from "@/lib/tools";
+import { fetchSslInfo } from "@/lib/ssl";
 
 const emitters = new Map<string, EventEmitter>();
 
@@ -53,6 +54,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const missingSecurityHeaders = requiredSecurityHeaders.filter(
       (h) => !res.headers[h as keyof typeof res.headers]
     );
+    const sslInfo = usesHttps ? await fetchSslInfo(url) : null;
 
     const pluginSlugs = new Set<string>();
     const themeSlugs = new Set<string>();
@@ -113,6 +115,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       usesHttps,
       robotsTxtPresent,
       sitemapPresent,
+      ssl: sslInfo,
       missingSecurityHeaders,
       isWordPress: wpInfo.isWordPress,
       name: wpInfo.name,
