@@ -34,10 +34,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# local sqlite database
+dev.db
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
