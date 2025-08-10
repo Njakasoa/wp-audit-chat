@@ -72,3 +72,75 @@ export async function checkBrokenLinks(
 
   return { total: urls.length, broken };
 }
+
+export interface BrokenImagesResult {
+  total: number;
+  broken: string[];
+}
+
+/**
+ * Extract image tags from HTML and check for broken references.
+ * Performs HEAD requests (falling back to GET when necessary) with a
+ * concurrency limit. URLs returning 4xx/5xx are reported as broken.
+ */
+export async function checkBrokenImages(
+  baseUrl: string,
+  html: string,
+  concurrency = 5
+): Promise<BrokenImagesResult> {
+  const $ = cheerio.load(html);
+  const srcs = new Set<string>();
+  $("img[src]").each((_, el) => {
+    const src = $(el).attr("src");
+    if (!src) return;
+    try {
+      const u = new URL(src, baseUrl);
+      if (u.protocol === "http:" || u.protocol === "https:") {
+        srcs.add(u.toString());
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+  });
+
+  const urls = Array.from(srcs);
+  const broken: string[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < urls.length) {
+      const current = urls[index++];
+      try {
+        let res = await got(current, {
+          method: "HEAD",
+          throwHttpErrors: false,
+          retry: { limit: 1 },
+          timeout: { request: 8000 },
+        });
+        if (res.statusCode >= 400) {
+          if (res.statusCode === 405 || res.statusCode === 501) {
+            res = await got(current, {
+              method: "GET",
+              throwHttpErrors: false,
+              retry: { limit: 1 },
+              timeout: { request: 8000 },
+            });
+          }
+          if (res.statusCode >= 400) {
+            broken.push(current);
+          }
+        }
+      } catch {
+        broken.push(current);
+      }
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, urls.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+
+  return { total: urls.length, broken };
+}
