@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import nock from "nock";
+import { brotliCompressSync } from "node:zlib";
 import { startAudit, getEmitter } from "./audit";
 
 vi.mock("@/lib/prisma", () => {
@@ -151,6 +152,51 @@ describe("ssl info", () => {
       emitter.on("done", resolve);
     });
     expect(data.ssl).toEqual(sslMock);
+  });
+});
+
+describe("performance metrics", () => {
+  it("collects response and asset info", async () => {
+    const html =
+      `<!doctype html><script src=\"a.js\"></script><script src=\"b.js\"></script>` +
+      `<link rel=\"stylesheet\" href=\"a.css\">` +
+      `<link rel=\"stylesheet\" href=\"b.css\">` +
+      `<link rel=\"stylesheet\" href=\"c.css\">`;
+    const body = brotliCompressSync(Buffer.from(html));
+    nock("https://perf.test")
+      .get("/")
+      .reply(200, body, {
+        "content-encoding": "br",
+        "alt-svc": 'h3=":443"',
+        "cache-control": "max-age=60",
+        expires: "Tue, 01 Jan 2030 00:00:00 GMT",
+      })
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://perf.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      jsAssetCount: number;
+      cssAssetCount: number;
+      compression: string | null;
+      cacheControl: string | null;
+      expires: string | null;
+      supportsHttp3: boolean;
+      ttfb: number | null;
+      httpVersion: string;
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.jsAssetCount).toBe(2);
+    expect(data.cssAssetCount).toBe(3);
+    expect(data.compression).toBe("br");
+    expect(data.cacheControl).toBe("max-age=60");
+    expect(data.expires).toBe("Tue, 01 Jan 2030 00:00:00 GMT");
+    expect(data.supportsHttp3).toBe(true);
+    expect(typeof data.ttfb).toBe("number");
+    expect(data.httpVersion).toBe("1.1");
   });
 });
 
