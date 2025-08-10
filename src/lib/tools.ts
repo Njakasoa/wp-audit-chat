@@ -306,3 +306,75 @@ export async function checkUserEnumeration(siteUrl: string): Promise<boolean> {
   }
   return false;
 }
+
+export async function checkDirectoryListing(siteUrl: string): Promise<boolean> {
+  try {
+    const dirUrl = new URL("/wp-content/", siteUrl).toString();
+    const res = await got(dirUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+      throwHttpErrors: false,
+    });
+    if (res.statusCode === 200) {
+      const body = res.body.toLowerCase();
+      return body.includes("index of /wp-content") || body.includes("parent directory");
+    }
+  } catch {
+    // ignore errors
+  }
+  return false;
+}
+
+export async function checkWpConfigBackup(siteUrl: string): Promise<boolean> {
+  try {
+    const backupUrl = new URL("/wp-config.php.bak", siteUrl).toString();
+    const res = await got(backupUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+      throwHttpErrors: false,
+    });
+    if (res.statusCode === 200) {
+      const body = res.body.toLowerCase();
+      return body.includes("db_name") || body.includes("define('db_name'");
+    }
+  } catch {
+    // ignore errors
+  }
+  return false;
+}
+
+export async function fetchLatestVersion(
+  type: "plugin" | "theme",
+  slug: string
+): Promise<string | null> {
+  try {
+    if (type === "plugin") {
+      const res = await got(
+        `https://api.wordpress.org/plugins/info/1.0/${slug}.json`,
+        {
+          timeout: { request: 8000 },
+          retry: { limit: 1 },
+          headers: { "user-agent": "WP-Audit-Chat" },
+        }
+      ).json<Record<string, unknown>>();
+      const ver = res.version;
+      return typeof ver === "string" ? ver : null;
+    }
+    const res = await got("https://api.wordpress.org/themes/info/1.2/", {
+      searchParams: {
+        action: "theme_information",
+        "request[slug]": slug,
+      },
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+    }).json<Record<string, unknown>>();
+    const ver = res.version;
+    return typeof ver === "string" ? ver : null;
+  } catch {
+    return null;
+  }
+}
+

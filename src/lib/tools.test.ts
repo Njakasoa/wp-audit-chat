@@ -6,6 +6,9 @@ import {
   fetchVulnerabilities,
   checkXmlRpc,
   checkUserEnumeration,
+  fetchLatestVersion,
+  checkDirectoryListing,
+  checkWpConfigBackup,
 } from "./tools";
 
 const ORIGINAL_API_KEY = process.env.PAGESPEED_API_KEY;
@@ -235,5 +238,56 @@ describe("checkUserEnumeration", () => {
       .reply(401, { code: "rest_cannot_access" });
     const exposed = await checkUserEnumeration("https://no-users.test");
     expect(exposed).toBe(false);
+  });
+});
+
+describe("fetchLatestVersion", () => {
+  it("fetches plugin version", async () => {
+    nock("https://api.wordpress.org")
+      .get("/plugins/info/1.0/test.json")
+      .reply(200, { version: "1.2.3" });
+    const ver = await fetchLatestVersion("plugin", "test");
+    expect(ver).toBe("1.2.3");
+  });
+
+  it("fetches theme version", async () => {
+    nock("https://api.wordpress.org")
+      .get("/themes/info/1.2/")
+      .query({ action: "theme_information", "request[slug]": "theme" })
+      .reply(200, { version: "2.0" });
+    const ver = await fetchLatestVersion("theme", "theme");
+    expect(ver).toBe("2.0");
+  });
+});
+
+describe("checkDirectoryListing", () => {
+  it("detects listing", async () => {
+    nock("https://list.test")
+      .get("/wp-content/")
+      .reply(200, "<title>Index of /wp-content</title>");
+    const res = await checkDirectoryListing("https://list.test");
+    expect(res).toBe(true);
+  });
+
+  it("returns false when disabled", async () => {
+    nock("https://nolisting.test").get("/wp-content/").reply(403);
+    const res = await checkDirectoryListing("https://nolisting.test");
+    expect(res).toBe(false);
+  });
+});
+
+describe("checkWpConfigBackup", () => {
+  it("detects exposed backup", async () => {
+    nock("https://backup.test")
+      .get("/wp-config.php.bak")
+      .reply(200, "DB_NAME='wp'");
+    const res = await checkWpConfigBackup("https://backup.test");
+    expect(res).toBe(true);
+  });
+
+  it("returns false when missing", async () => {
+    nock("https://nobackup.test").get("/wp-config.php.bak").reply(404);
+    const res = await checkWpConfigBackup("https://nobackup.test");
+    expect(res).toBe(false);
   });
 });

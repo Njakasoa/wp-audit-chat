@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import nock from "nock";
 import { brotliCompressSync } from "node:zlib";
 import { startAudit, getEmitter } from "./audit";
+import {
+  fetchLatestVersion,
+  checkDirectoryListing,
+  checkWpConfigBackup,
+} from "@/lib/tools";
 
 vi.mock("@/lib/prisma", () => {
   let id = 0;
@@ -24,6 +29,9 @@ vi.mock("@/lib/tools", async () => {
     fetchVulnerabilities: vi.fn().mockResolvedValue({}),
     checkXmlRpc: vi.fn().mockResolvedValue(false),
     checkUserEnumeration: vi.fn().mockResolvedValue(false),
+    fetchLatestVersion: vi.fn().mockResolvedValue(null),
+    checkDirectoryListing: vi.fn().mockResolvedValue(false),
+    checkWpConfigBackup: vi.fn().mockResolvedValue(false),
   };
 });
 
@@ -37,6 +45,7 @@ const sslMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/ssl", () => ({
   fetchSslInfo: vi.fn().mockResolvedValue(sslMock),
+  fetchSslLabs: vi.fn().mockResolvedValue({ grade: "A" }),
 }));
 
 const axeMock = vi.hoisted(() => ({
@@ -148,10 +157,96 @@ describe("ssl info", () => {
       .reply(404);
     const id = await startAudit("https://ssl.test");
     const emitter = getEmitter(id)!;
-    const data = await new Promise<{ ssl: typeof sslMock }>((resolve) => {
+    const data = await new Promise<{
+      ssl: typeof sslMock;
+      sslLabs: { grade: string } | null;
+    }>((resolve) => {
       emitter.on("done", resolve);
     });
     expect(data.ssl).toEqual(sslMock);
+    expect(data.sslLabs).toEqual({ grade: "A" });
+  });
+});
+
+describe("versions and exposures", () => {
+  it("flags outdated plugin and theme versions", async () => {
+    vi.mocked(fetchLatestVersion).mockImplementation(async () => "2.0");
+    const html =
+      `<!doctype html>` +
+      `<script src=\"/wp-content/plugins/test-plugin/main.js?ver=1.0\"></script>` +
+      `<link rel=\"stylesheet\" href=\"/wp-content/themes/test-theme/style.css?ver=1.0\">`;
+    nock("https://version.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://version.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      plugins: { slug: string; outdated: boolean }[];
+      themes: { slug: string; outdated: boolean }[];
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.plugins[0]).toEqual(
+      expect.objectContaining({ slug: "test-plugin", outdated: true })
+    );
+    expect(data.themes[0]).toEqual(
+      expect.objectContaining({ slug: "test-theme", outdated: true })
+    );
+  });
+
+  it("detects directory listing and exposed backups", async () => {
+    vi.mocked(checkDirectoryListing).mockResolvedValueOnce(true);
+    vi.mocked(checkWpConfigBackup).mockResolvedValueOnce(true);
+    const html = `<!doctype html>`;
+    nock("https://exposed.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://exposed.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      directoryListing: boolean;
+      wpConfigBakExposed: boolean;
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.directoryListing).toBe(true);
+    expect(data.wpConfigBakExposed).toBe(true);
+  });
+});
+
+describe("cookies and mixed content", () => {
+  it("reports insecure cookies and mixed resources", async () => {
+    const html =
+      `<!doctype html><img src=\"http://insecure.test/a.jpg\">`;
+    nock("https://cookiemix.test")
+      .get("/")
+      .reply(200, html, {
+        "set-cookie": ["a=1", "b=2; Secure; HttpOnly"],
+      })
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://cookiemix.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      cookiesMissingSecure: number;
+      cookiesMissingHttpOnly: number;
+      mixedContent: string[];
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.cookiesMissingSecure).toBe(1);
+    expect(data.cookiesMissingHttpOnly).toBe(1);
+    expect(data.mixedContent).toEqual(["http://insecure.test/a.jpg"]);
   });
 });
 
