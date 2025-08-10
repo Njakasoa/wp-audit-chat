@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    image: wp-audit-chat:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - db-data:/app/prisma
+    # Run schema push on startup (idempotent), then start the server
+    command: ["sh", "-c", "npx prisma db push && npm start"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+
