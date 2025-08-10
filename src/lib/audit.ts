@@ -127,6 +127,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const missingTwitter = requiredTwitter.filter((t) => !twitterTags[t]);
     const h1Count = $("h1").length;
     const hasMultipleH1 = h1Count !== 1;
+    const totalImageCount = $('img').length;
     const imagesWithoutAlt = $('img:not([alt]), img[alt=""]').length;
     const jsAssetCount = $('script[src]').length;
     const cssAssetCount = $('link[rel="stylesheet"]').length;
@@ -137,6 +138,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       : setCookie
       ? [setCookie]
       : [];
+    const cookieCount = cookieArr.length;
     let cookiesMissingSecure = 0;
     let cookiesMissingHttpOnly = 0;
     for (const c of cookieArr) {
@@ -337,12 +339,14 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       missingTwitter,
       h1Count,
       hasMultipleH1,
+      imageCount: totalImageCount,
       imagesWithoutAlt,
       brokenLinkCount: brokenLinks.length,
       brokenLinks,
       brokenImageCount: brokenImages.length,
       brokenImages,
       usesHttps,
+      cookieCount,
       cookiesMissingSecure,
       cookiesMissingHttpOnly,
       mixedContentCount: mixedContent.length,

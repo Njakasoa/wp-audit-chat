@@ -5,11 +5,14 @@ type Summary = {
   canonicalUrl?: string | null;
   name?: string | null;
   brokenLinkCount?: number;
+  brokenLinks?: string[];
   imagesWithoutAlt?: number;
+  imageCount?: number;
   missingSecurityHeaders?: unknown[];
   missingOpenGraph?: string[];
   missingTwitter?: string[];
   accessibilityViolationCount?: number;
+  accessibilityViolations?: string[];
   performance?: number;
   accessibility?: number;
   bestPractices?: number;
@@ -20,12 +23,45 @@ type Summary = {
   brokenImageCount?: number;
   h1Count?: number;
   hasMultipleH1?: boolean;
+  jsAssetCount?: number;
+  cssAssetCount?: number;
+  ttfb?: number | null;
+  httpVersion?: string;
+  supportsHttp3?: boolean;
+  compression?: string | null;
+  cacheControl?: string | null;
+  expires?: string | null;
+  robotsTxtPresent?: boolean;
+  sitemapPresent?: boolean;
+  usesHttps?: boolean;
+  cookiesMissingSecure?: number;
+  cookiesMissingHttpOnly?: number;
+  cookieCount?: number;
+  ssl?: {
+    issuer?: string;
+    validFrom?: string;
+    validTo?: string;
+    daysUntilExpiration?: number;
+    valid?: boolean;
+  } | null;
+  isWordPress?: boolean;
+  wpVersion?: string | null;
+  isUpToDate?: boolean;
+  caching?: string[];
+  plugins?: { slug: string; version: string | null; latestVersion: string | null; outdated: boolean }[];
+  themes?: { slug: string; version: string | null; latestVersion: string | null; outdated: boolean }[];
+  safeBrowsingThreats?: unknown[];
   pageSamples?: {
     url: string;
     status: number;
     title?: string;
     imgWithoutAltCount?: number;
+    jsCount?: number;
+    cssCount?: number;
+    largestImageBytes?: number;
   }[];
+  mixedContentCount?: number;
+  mixedContent?: string[];
   [key: string]: unknown;
 } | null;
 
@@ -114,6 +150,39 @@ export default function SummaryView({ summary }: Props) {
               ))}
             </div>
           </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <BoolPill label="HTTPS" value={!!summary?.usesHttps} />
+            <BoolPill label="HTTP/3" value={!!summary?.supportsHttp3} />
+            <BoolPill label="robots.txt" value={!!summary?.robotsTxtPresent} />
+            <BoolPill label="sitemap.xml" value={!!summary?.sitemapPresent} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <StatTile label="TTFB (ms)" value={summary?.ttfb ?? "-"} />
+            <StatTile label="HTTP" value={summary?.httpVersion ?? "-"} />
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <StatTile label="Cookies" value={summary?.cookieCount ?? 0} />
+              <StatTile label="No Secure" value={summary?.cookiesMissingSecure ?? 0} />
+              <StatTile label="No HttpOnly" value={summary?.cookiesMissingHttpOnly ?? 0} />
+            </div>
+            <StackedBar
+              total={summary?.cookieCount ?? 0}
+              missing={summary?.cookiesMissingSecure ?? 0}
+              label="Cookies with Secure"
+              presentLabel="Compliant"
+              missingLabel="Missing"
+              colors={{ present: "#16a34a", missing: "#ef4444" }}
+            />
+            <StackedBar
+              total={summary?.cookieCount ?? 0}
+              missing={summary?.cookiesMissingHttpOnly ?? 0}
+              label="Cookies with HttpOnly"
+              presentLabel="Compliant"
+              missingLabel="Missing"
+              colors={{ present: "#16a34a", missing: "#ef4444" }}
+            />
+          </div>
         </Panel>
         <Panel title="Content & Links">
           <ListRow label="Images w/o alt" value={summary?.imagesWithoutAlt} />
@@ -137,21 +206,178 @@ export default function SummaryView({ summary }: Props) {
               colors={{ present: "#2563eb", missing: "#f59e0b" }}
             />
           </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 items-start">
+            <StatTile label="H1 Count" value={summary?.h1Count ?? "-"} />
+            <BoolPill label="Multiple H1" value={!!summary?.hasMultipleH1} />
+          </div>
+          <div className="mt-3">
+            <div className="text-xs text-muted-foreground mb-1">Broken Links</div>
+            {Array.isArray(summary?.brokenLinks) && summary?.brokenLinks?.length ? (
+              <ul className="max-h-28 overflow-auto text-xs space-y-1">
+                {summary?.brokenLinks?.map((l) => (
+                  <li key={l} className="truncate" title={l}>{l}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-xs text-muted-foreground">None</div>
+            )}
+          </div>
+          <div className="mt-3">
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <StatTile label="Mixed Content" value={summary?.mixedContentCount ?? 0} />
+              <StatTile label="Images" value={summary?.imageCount ?? 0} />
+              <StatTile label="Assets" value={(summary?.jsAssetCount ?? 0) + (summary?.cssAssetCount ?? 0)} />
+            </div>
+            <StackedBar
+              total={(summary?.imageCount ?? 0) + (summary?.jsAssetCount ?? 0) + (summary?.cssAssetCount ?? 0)}
+              missing={summary?.mixedContentCount ?? 0}
+              label="Mixed content vs total assets"
+              presentLabel="Safe"
+              missingLabel="Mixed"
+              colors={{ present: "#059669", missing: "#f59e0b" }}
+            />
+            {Array.isArray(summary?.mixedContent) && summary?.mixedContent?.length ? (
+              <ul className="max-h-28 overflow-auto text-xs space-y-1 mt-2">
+                {summary?.mixedContent?.map((m) => (
+                  <li key={m} className="truncate" title={m}>{m}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </Panel>
       </div>
 
       {/* Pages overview */}
       <Panel title="Pages Overview">
         {Array.isArray(summary?.pageSamples) && summary?.pageSamples?.length ? (
-          <BarChart
-            data={(summary?.pageSamples || []).map((p) => ({
-              label: new URL(p.url).pathname || "/",
-              value: p.imgWithoutAltCount ?? 0,
-            }))}
-            label="Images without alt per page"
-          />
+          <div className="space-y-5">
+            <BarChart
+              data={(summary?.pageSamples || []).map((p) => ({
+                label: new URL(p.url).pathname || "/",
+                value: p.imgWithoutAltCount ?? 0,
+              }))}
+              label="Images without alt per page"
+            />
+            <BarChart
+              data={(summary?.pageSamples || []).map((p) => ({
+                label: new URL(p.url).pathname || "/",
+                value: p.jsCount ?? 0,
+              }))}
+              label="JS assets per page"
+            />
+            <BarChart
+              data={(summary?.pageSamples || []).map((p) => ({
+                label: new URL(p.url).pathname || "/",
+                value: p.cssCount ?? 0,
+              }))}
+              label="CSS assets per page"
+            />
+          </div>
         ) : (
           <div className="text-sm text-muted-foreground">No page samples available.</div>
+        )}
+      </Panel>
+
+      {/* Technology & Risks */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Panel title="SSL & Platform">
+          <ListRow label="Issuer" value={summary?.ssl?.issuer ?? "-"} />
+          <ListRow label="Valid From" value={summary?.ssl?.validFrom ?? "-"} />
+          <ListRow label="Valid To" value={summary?.ssl?.validTo ?? "-"} />
+          <div className="mt-2">
+            <GaugeBar
+              value={Math.max(0, Math.min(90, summary?.ssl?.daysUntilExpiration ?? 0))}
+              max={90}
+              label={`Days to expire (${summary?.ssl?.daysUntilExpiration ?? 0})`}
+              color="#10b981"
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <StatTile label="JS assets" value={summary?.jsAssetCount ?? 0} />
+            <StatTile label="CSS assets" value={summary?.cssAssetCount ?? 0} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <StatTile label="Compression" value={summary?.compression ?? "-"} />
+            <StatTile label="Cache-Control" value={summary?.cacheControl ?? "-"} />
+          </div>
+        </Panel>
+        <Panel title="Plugins, Themes & Safety">
+          <div className="space-y-3">
+            <StackedBar
+              total={summary?.plugins?.length ?? 0}
+              missing={(summary?.plugins || []).filter((p) => p.outdated).length}
+              label="Plugins: up-to-date vs outdated"
+              presentLabel="Up-to-date"
+              missingLabel="Outdated"
+              colors={{ present: "#16a34a", missing: "#f97316" }}
+            />
+            <StackedBar
+              total={summary?.themes?.length ?? 0}
+              missing={(summary?.themes || []).filter((t) => t.outdated).length}
+              label="Themes: up-to-date vs outdated"
+              presentLabel="Up-to-date"
+              missingLabel="Outdated"
+              colors={{ present: "#16a34a", missing: "#f97316" }}
+            />
+            <StackedBar
+              total={summary?.plugins?.length ?? 0}
+              missing={Object.keys((summary?.vulnerabilities as Record<string, unknown> | undefined)?.plugins || {}).length}
+              label="Plugins: vulnerable vs clean"
+              presentLabel="Clean"
+              missingLabel="Vulnerable"
+              colors={{ present: "#22c55e", missing: "#dc2626" }}
+            />
+            <StackedBar
+              total={summary?.themes?.length ?? 0}
+              missing={Object.keys((summary?.vulnerabilities as Record<string, unknown> | undefined)?.themes || {}).length}
+              label="Themes: vulnerable vs clean"
+              presentLabel="Clean"
+              missingLabel="Vulnerable"
+              colors={{ present: "#22c55e", missing: "#dc2626" }}
+            />
+            <div className="text-xs text-muted-foreground">Outdated items</div>
+            <div className="flex flex-wrap gap-2">
+              {(summary?.plugins || []).filter((p) => p.outdated).map((p) => (
+                <span key={`pl-${p.slug}`} className="inline-flex items-center rounded bg-muted px-2 py-0.5 text-[11px]">{p.slug}</span>
+              ))}
+              {(summary?.themes || []).filter((t) => t.outdated).map((t) => (
+                <span key={`th-${t.slug}`} className="inline-flex items-center rounded bg-muted px-2 py-0.5 text-[11px]">{t.slug}</span>
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">Vulnerable items</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(((summary?.vulnerabilities as { plugins?: Record<string, unknown[]> })?.plugins) || {}).map(([slug, arr]) => (
+                <span key={`vpl-${slug}`} className="inline-flex items-center rounded bg-rose-100 text-rose-700 px-2 py-0.5 text-[11px]">
+                  {slug} ({Array.isArray(arr) ? arr.length : 0})
+                </span>
+              ))}
+              {Object.entries(((summary?.vulnerabilities as { themes?: Record<string, unknown[]> })?.themes) || {}).map(([slug, arr]) => (
+                <span key={`vth-${slug}`} className="inline-flex items-center rounded bg-rose-100 text-rose-700 px-2 py-0.5 text-[11px]">
+                  {slug} ({Array.isArray(arr) ? arr.length : 0})
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2 items-start">
+              <StatTile label="Safe Browsing threats" value={(summary?.safeBrowsingThreats || []).length} />
+              <BoolPill label="WordPress up-to-date" value={!!summary?.isUpToDate} />
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* Accessibility details */}
+      <Panel title="Accessibility Issues">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          <StatTile label="Violations" value={summary?.accessibilityViolationCount ?? 0} />
+        </div>
+        {Array.isArray(summary?.accessibilityViolations) && summary?.accessibilityViolations?.length ? (
+          <ul className="list-disc pl-5 text-sm space-y-1">
+            {(summary?.accessibilityViolations || []).map((v, i) => (
+              <li key={`${i}-${v}`}>{v}</li>
+            ))}
+          </ul>
+        ) : (
+          <div className="text-sm text-muted-foreground">No violations reported.</div>
         )}
       </Panel>
 
@@ -276,6 +502,38 @@ function BarChart({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="rounded-lg bg-muted/50 p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold text-foreground">{String(value)}</div>
+    </div>
+  );
+}
+
+function BoolPill({ label, value }: { label: string; value: boolean }) {
+  const color = value ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+  const text = value ? "Yes" : "No";
+  return (
+    <div className={`self-start rounded-full px-3 py-1 text-xs inline-flex items-center gap-2 ${color}`}>
+      <span className="font-medium">{label}</span>
+      <span>• {text}</span>
+    </div>
+  );
+}
+
+function GaugeBar({ value, max, label, color }: { value: number; max: number; label: string; color: string }) {
+  const pct = Math.max(0, Math.min(1, max ? value / max : 0));
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className="h-2 bg-muted rounded">
+        <div className="h-2 rounded" style={{ width: `${pct * 100}%`, backgroundColor: color }} />
       </div>
     </div>
   );
