@@ -4,6 +4,19 @@ Next.js app that audits WordPress sites and streams progress.
 
 Uses [Prisma](https://www.prisma.io/) with a SQLite database file.
 
+## Features
+
+- Live audit progress via SSE with a single Node process.
+- Summary dashboard with lightweight charts:
+  - Security headers: present vs missing + chips.
+  - Social tags: Open Graph/Twitter coverage bars.
+  - Cookies: Secure/HttpOnly compliance tiles and bars.
+  - Mixed content: count, list, and ratio bar against total assets.
+  - Pages overview: images-without-alt, JS, and CSS per page.
+  - SSL & platform: issuer, validity, days-to-expire gauge, asset and caching details.
+  - Plugins/themes: up-to-date vs outdated bars, vulnerable items with counts.
+  - Accessibility: violations count and list.
+
 ## Setup
 
 1. Install Node using [nvm](https://github.com/nvm-sh/nvm):
@@ -19,6 +32,26 @@ Uses [Prisma](https://www.prisma.io/) with a SQLite database file.
    ```
 
 The development server uses the `dev.db` SQLite file specified in `.env`.
+
+## Run, Build, Lint, Test
+
+- Dev: `npm run dev`
+- Build: `npm run build`
+- Start: `npm start`
+- Lint: `npm run lint`
+- Test: `npm test`
+
+## Deploy
+
+See DEPLOYMENT.md for options and trade-offs. The recommended path is a single container with a persistent volume for SQLite and a single replica to keep the in-memory event bus reliable.
+
+Quick start with Docker Compose:
+
+```sh
+cp .env.example .env
+docker compose up -d --build
+# open http://localhost:3000
+```
 
 ## Locked Versions
 
@@ -59,6 +92,8 @@ _TBD_
 ## Limits
 
 - Prototype audit engine with basic checks only.
+- Progress streaming relies on an in-memory event emitter; deploy as a single instance unless you refactor to a shared bus (e.g., Redis Pub/Sub).
+- SQLite requires persistent disk. For serverless, switch to a managed DB and shared pub/sub.
 
 ## Privacy
 
