@@ -1,4 +1,5 @@
 import tls from "tls";
+import got from "got";
 
 export interface SslInfo {
   issuer: string | null;
@@ -59,4 +60,47 @@ export async function fetchSslInfo(siteUrl: string): Promise<SslInfo | null> {
     return null;
   }
 }
+
+export interface SslLabsResult {
+  grade: string | null;
+}
+
+interface SslLabsApiResponse {
+  status?: string;
+  endpoints?: { grade?: string }[];
+}
+
+export async function fetchSslLabs(siteUrl: string): Promise<SslLabsResult | null> {
+  try {
+    const { hostname } = new URL(siteUrl);
+    let result: SslLabsApiResponse | null = null;
+    for (let i = 0; i < 5; i++) {
+      result = await got(
+        "https://api.ssllabs.com/api/v3/analyze",
+        {
+          searchParams: {
+            host: hostname,
+            publish: "off",
+            fromCache: "on",
+            all: "done",
+          },
+          timeout: { request: 12000 },
+          retry: { limit: 1 },
+          headers: { "user-agent": "WP-Audit-Chat" },
+        }
+      ).json<SslLabsApiResponse>();
+      if (result.status === "READY" || result.status === "ERROR") break;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    if (result && result.status === "READY" && Array.isArray(result.endpoints)) {
+      const ep = result.endpoints[0];
+      const grade = typeof ep?.grade === "string" ? ep.grade : null;
+      return { grade };
+    }
+  } catch {
+    // ignore errors
+  }
+  return null;
+}
+
 

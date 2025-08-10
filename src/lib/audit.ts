@@ -12,8 +12,11 @@ import {
   checkUserEnumeration,
   robotsTxtExists,
   sitemapExists,
+  checkDirectoryListing,
+  checkWpConfigBackup,
+  fetchLatestVersion,
 } from "@/lib/tools";
-import { fetchSslInfo } from "@/lib/ssl";
+import { fetchSslInfo, fetchSslLabs } from "@/lib/ssl";
 import { checkBrokenLinks } from "./links";
 
 const emitters = new Map<string, EventEmitter>();
@@ -22,6 +25,16 @@ interface WpEntity {
   slug?: string;
   id?: string | number;
   name?: string;
+}
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 export async function startAudit(url: string): Promise<string> {
@@ -57,6 +70,28 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     const jsAssetCount = $('script[src]').length;
     const cssAssetCount = $('link[rel="stylesheet"]').length;
     const usesHttps = url.startsWith("https://");
+    const setCookie = res.headers["set-cookie"];
+    const cookieArr = Array.isArray(setCookie)
+      ? setCookie
+      : setCookie
+      ? [setCookie]
+      : [];
+    let cookiesMissingSecure = 0;
+    let cookiesMissingHttpOnly = 0;
+    for (const c of cookieArr) {
+      const lower = c.toLowerCase();
+      if (!lower.includes("secure")) cookiesMissingSecure++;
+      if (!lower.includes("httponly")) cookiesMissingHttpOnly++;
+    }
+    const mixedContent: string[] = [];
+    if (usesHttps) {
+      $(
+        'script[src], link[href], img[src], iframe[src]'
+      ).each((_, el) => {
+        const srcAttr = $(el).attr("src") || $(el).attr("href");
+        if (srcAttr && srcAttr.startsWith("http://")) mixedContent.push(srcAttr);
+      });
+    }
     const ttfb = res.timings?.phases.firstByte ?? null;
     const httpVersion = res.httpVersion;
     const supportsHttp3 = /h3/i.test(
@@ -105,14 +140,33 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       })
       .map(([header]) => header);
     const sslInfo = usesHttps ? await fetchSslInfo(url) : null;
+    const sslLabs = usesHttps ? await fetchSslLabs(url) : null;
 
     const pluginSlugs = new Set<string>();
     const themeSlugs = new Set<string>();
-    for (const match of res.body.matchAll(/wp-content\/plugins\/([a-z0-9-]+)/gi)) {
+    const pluginInfo = new Map<string, { version?: string }>();
+    const themeInfo = new Map<string, { version?: string }>();
+    for (const match of res.body.matchAll(
+      /wp-content\/plugins\/([a-z0-9-]+)[^"'\s]*?ver=([0-9.]+)/gi
+    )) {
       pluginSlugs.add(match[1]);
+      pluginInfo.set(match[1], { version: match[2] });
+    }
+    for (const match of res.body.matchAll(/wp-content\/plugins\/([a-z0-9-]+)/gi)) {
+      const slug = match[1];
+      pluginSlugs.add(slug);
+      if (!pluginInfo.has(slug)) pluginInfo.set(slug, {});
+    }
+    for (const match of res.body.matchAll(
+      /wp-content\/themes\/([a-z0-9-]+)[^"'\s]*?ver=([0-9.]+)/gi
+    )) {
+      themeSlugs.add(match[1]);
+      themeInfo.set(match[1], { version: match[2] });
     }
     for (const match of res.body.matchAll(/wp-content\/themes\/([a-z0-9-]+)/gi)) {
-      themeSlugs.add(match[1]);
+      const slug = match[1];
+      themeSlugs.add(slug);
+      if (!themeInfo.has(slug)) themeInfo.set(slug, {});
     }
     try {
       const pluginsApi = await got(new URL("/wp-json/wp/v2/plugins", url).toString(), {
@@ -122,7 +176,13 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       }).json<WpEntity[]>();
       for (const p of pluginsApi) {
         const slug = p?.slug || p?.id || p?.name;
-        if (typeof slug === "string") pluginSlugs.add(slug);
+        if (typeof slug === "string") {
+          pluginSlugs.add(slug);
+          const version = (p as WpEntity & { version?: string }).version;
+          if (!pluginInfo.has(slug)) pluginInfo.set(slug, {});
+          if (typeof version === "string")
+            pluginInfo.get(slug)!.version = version;
+        }
       }
     } catch {
       // ignore
@@ -135,7 +195,13 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       }).json<WpEntity[]>();
       for (const t of themesApi) {
         const slug = t?.slug || t?.id || t?.name;
-        if (typeof slug === "string") themeSlugs.add(slug);
+        if (typeof slug === "string") {
+          themeSlugs.add(slug);
+          const version = (t as WpEntity & { version?: string }).version;
+          if (!themeInfo.has(slug)) themeInfo.set(slug, {});
+          if (typeof version === "string")
+            themeInfo.get(slug)!.version = version;
+        }
       }
     } catch {
       // ignore
@@ -151,6 +217,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       themeVulns,
       xmlRpcEnabled,
       userEnumerationEnabled,
+      directoryListing,
+      wpConfigBakExposed,
     ] = await Promise.all([
       fetchWordPressInfo(url),
       robotsTxtExists(url),
@@ -159,7 +227,26 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       fetchVulnerabilities("theme", themeSlugs),
       checkXmlRpc(url),
       checkUserEnumeration(url),
+      checkDirectoryListing(url),
+      checkWpConfigBackup(url),
     ]);
+
+    const pluginDetails = await Promise.all(
+      Array.from(pluginSlugs).map(async (slug) => {
+        const installed = pluginInfo.get(slug)?.version;
+        const latest = await fetchLatestVersion("plugin", slug);
+        const outdated = installed && latest ? compareVersions(installed, latest) < 0 : false;
+        return { slug, version: installed ?? null, latestVersion: latest, outdated };
+      })
+    );
+    const themeDetails = await Promise.all(
+      Array.from(themeSlugs).map(async (slug) => {
+        const installed = themeInfo.get(slug)?.version;
+        const latest = await fetchLatestVersion("theme", slug);
+        const outdated = installed && latest ? compareVersions(installed, latest) < 0 : false;
+        return { slug, version: installed ?? null, latestVersion: latest, outdated };
+      })
+    );
     emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
     const psi = await fetchPageSpeedScores(url);
     const data = {
@@ -171,6 +258,10 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       brokenLinkCount: brokenLinks.length,
       brokenLinks,
       usesHttps,
+      cookiesMissingSecure,
+      cookiesMissingHttpOnly,
+      mixedContentCount: mixedContent.length,
+      mixedContent: mixedContent.slice(0, 10),
       ttfb,
       httpVersion,
       supportsHttp3,
@@ -182,19 +273,22 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       robotsTxtPresent,
       sitemapPresent,
       ssl: sslInfo,
+      sslLabs,
       accessibilityViolationCount,
       accessibilityViolations,
       missingSecurityHeaders,
       misconfiguredSecurityHeaders,
       xmlRpcEnabled,
       userEnumerationEnabled,
+      directoryListing,
+      wpConfigBakExposed,
       isWordPress: wpInfo.isWordPress,
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
       isUpToDate: wpInfo.isUpToDate,
       caching: wpInfo.caching,
-      plugins: Array.from(pluginSlugs),
-      themes: Array.from(themeSlugs),
+      plugins: pluginDetails,
+      themes: themeDetails,
       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
       ...psi,
     };
