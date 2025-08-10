@@ -6,12 +6,14 @@ export interface WordPressInfo {
   name?: string;
   wpVersion?: string;
   isUpToDate?: boolean;
+  caching: string[];
 }
 
 export async function fetchWordPressInfo(siteUrl: string): Promise<WordPressInfo> {
   let isWordPress = false;
   let name: string | undefined;
   let wpVersion: string | undefined;
+  let caching: string[] = [];
 
   try {
     const apiUrl = new URL("/wp-json", siteUrl).toString();
@@ -44,6 +46,7 @@ export async function fetchWordPressInfo(siteUrl: string): Promise<WordPressInfo
         wpVersion = match[1];
       }
     }
+    caching = detectCachingLayers(res.body, res.headers);
   } catch {
     // ignore errors
   }
@@ -66,7 +69,28 @@ export async function fetchWordPressInfo(siteUrl: string): Promise<WordPressInfo
     }
   }
 
-  return { isWordPress, name, wpVersion, isUpToDate };
+  return { isWordPress, name, wpVersion, isUpToDate, caching };
+}
+
+function detectCachingLayers(
+  body: string,
+  headers: Record<string, string | string[] | undefined>
+): string[] {
+  const layers: string[] = [];
+  const headerLookup = Object.keys(headers).reduce<Record<string, string>>((acc, key) => {
+    const val = headers[key];
+    acc[key.toLowerCase()] = Array.isArray(val) ? val.join(",") : String(val);
+    return acc;
+  }, {});
+  if ("x-cache-enabled" in headerLookup) layers.push("WP Rocket");
+  if ("x-litespeed-cache" in headerLookup) layers.push("LiteSpeed Cache");
+  if ("x-cache" in headerLookup || "x-cache-hits" in headerLookup)
+    layers.push("Generic Cache");
+  if ("cf-cache-status" in headerLookup) layers.push("Cloudflare");
+  if (body.includes("<!-- WP Super Cache -->")) layers.push("WP Super Cache");
+  if (body.includes("<!-- Cache Enabler by KeyCDN -->")) layers.push("Cache Enabler");
+  if (body.includes("<!-- Cached by WP-Optimize -->")) layers.push("WP-Optimize Cache");
+  return layers;
 }
 
 export interface PageSpeedScores {

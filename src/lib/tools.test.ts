@@ -29,7 +29,11 @@ describe("fetchWordPressInfo", () => {
       .get("/wp-json")
       .reply(200, { name: "Example" })
       .get("/")
-      .reply(200, "<meta name=\"generator\" content=\"WordPress 6.5.2\">");
+      .reply(
+        200,
+        "<meta name=\"generator\" content=\"WordPress 6.5.2\">",
+        { "x-cache-enabled": "true" }
+      );
     nock("https://api.wordpress.org")
       .get("/core/stable-check/1.0/")
       .query({ version: "6.5.2" })
@@ -40,6 +44,7 @@ describe("fetchWordPressInfo", () => {
       name: "Example",
       wpVersion: "6.5.2",
       isUpToDate: true,
+      caching: ["WP Rocket"],
     });
   });
 
@@ -52,6 +57,7 @@ describe("fetchWordPressInfo", () => {
     const info = await fetchWordPressInfo("https://notwp.com");
     expect(info.isWordPress).toBe(false);
     expect(info.wpVersion).toBeUndefined();
+    expect(info.caching).toEqual([]);
   });
 
   it("flags outdated WordPress versions", async () => {
@@ -67,6 +73,7 @@ describe("fetchWordPressInfo", () => {
     const info = await fetchWordPressInfo("https://oldwp.com");
     expect(info.isWordPress).toBe(true);
     expect(info.isUpToDate).toBe(false);
+    expect(info.caching).toEqual([]);
   });
 });
 

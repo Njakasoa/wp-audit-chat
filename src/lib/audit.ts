@@ -158,6 +158,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
       isUpToDate: wpInfo.isUpToDate,
+      caching: wpInfo.caching,
       plugins: Array.from(pluginSlugs),
       themes: Array.from(themeSlugs),
       vulnerabilities: { plugins: pluginVulns, themes: themeVulns },
