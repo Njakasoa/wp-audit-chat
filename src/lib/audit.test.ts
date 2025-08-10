@@ -17,6 +17,9 @@ vi.mock("@/lib/prisma", () => {
         create: vi.fn().mockImplementation(() => Promise.resolve({ id: `${++id}` })),
         update: vi.fn().mockResolvedValue({}),
       },
+      pageSample: {
+        createMany: vi.fn().mockResolvedValue({}),
+      },
     },
   };
 });
@@ -309,6 +312,10 @@ describe("broken links", () => {
       .reply(200)
       .head("/bad")
       .reply(404)
+      .get("/ok")
+      .reply(200, "<!doctype html>")
+      .get("/bad")
+      .reply(404, "<!doctype html>")
       .get("/robots.txt")
       .reply(404)
       .get("/sitemap.xml")
@@ -319,6 +326,29 @@ describe("broken links", () => {
       emitter.on("done", resolve);
     });
     expect(data.brokenLinks).toEqual(["https://broken.test/bad"]);
+  });
+});
+
+describe("crawler", () => {
+  it("samples additional pages", async () => {
+    const html = `<!doctype html><a href="/p1">p1</a>`;
+    nock("https://crawl.test")
+      .get("/")
+      .reply(200, html)
+      .get("/p1")
+      .reply(200, "<!doctype html><title>P1</title>")
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://crawl.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{ pageSamples: { url: string }[] }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.pageSamples).toEqual([
+      expect.objectContaining({ url: "https://crawl.test/p1" }),
+    ]);
   });
 });
 

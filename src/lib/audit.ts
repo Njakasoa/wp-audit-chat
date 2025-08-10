@@ -20,8 +20,13 @@ import {
 } from "@/lib/tools";
 import { fetchSslInfo, fetchSslLabs } from "@/lib/ssl";
 import { checkBrokenLinks, checkBrokenImages } from "./links";
+import { crawl } from "./crawler";
 
 const emitters = new Map<string, EventEmitter>();
+
+function progress(emitter: EventEmitter, step: string, message: string) {
+  emitter.emit("progress", { step, message });
+}
 
 interface WpEntity {
   slug?: string;
@@ -51,7 +56,7 @@ export async function startAudit(url: string): Promise<string> {
 
 async function process(id: string, url: string, emitter: EventEmitter) {
   try {
-    emitter.emit("progress", { message: "Fetching URL..." });
+    progress(emitter, "fetch", `Fetching ${url}...`);
     await prisma.audit.update({ where: { id }, data: { status: "running" } });
     const res = await got(url, {
       timeout: { request: 12000 },
@@ -169,6 +174,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       .map(([header]) => header);
     const sslInfo = usesHttps ? await fetchSslInfo(url) : null;
     const sslLabs = usesHttps ? await fetchSslLabs(url) : null;
+    progress(emitter, "crawl", "Crawling additional pages...");
+    const pageSamples = await crawl(url, res.body);
 
     const pluginSlugs = new Set<string>();
     const themeSlugs = new Set<string>();
@@ -234,13 +241,13 @@ async function process(id: string, url: string, emitter: EventEmitter) {
     } catch {
       // ignore
     }
-    emitter.emit("progress", { message: "Checking for broken links..." });
+    progress(emitter, "links", "Checking for broken links...");
     const { broken: brokenLinks } = await checkBrokenLinks(url, res.body);
-    emitter.emit("progress", { message: "Checking for broken images..." });
+    progress(emitter, "images", "Checking for broken images...");
     const { broken: brokenImages } = await checkBrokenImages(url, res.body);
-    emitter.emit("progress", { message: "Checking Google Safe Browsing..." });
+    progress(emitter, "safe-browsing", "Checking Google Safe Browsing...");
     const safeBrowsingThreats = await checkSafeBrowsing(url);
-    emitter.emit("progress", { message: "Checking WordPress info..." });
+    progress(emitter, "wordpress", "Checking WordPress info...");
     const [
       wpInfo,
       robotsTxtPresent,
@@ -281,8 +288,13 @@ async function process(id: string, url: string, emitter: EventEmitter) {
         return { slug, version: installed ?? null, latestVersion: latest, outdated };
       })
     );
-    emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
+    progress(emitter, "pagespeed", "Fetching PageSpeed Insights...");
     const psi = await fetchPageSpeedScores(url);
+    if (pageSamples.length) {
+      await prisma.pageSample.createMany({
+        data: pageSamples.map((p) => ({ ...p, auditId: id })),
+      });
+    }
     const data = {
       status: res.statusCode,
       title,
@@ -338,6 +350,7 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       structuredData: structuredData?.items ?? [],
       safeBrowsingThreats,
       ...psi,
+      pageSamples,
     };
     await prisma.audit.update({
       where: { id },
