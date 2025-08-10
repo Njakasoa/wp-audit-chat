@@ -21,6 +21,8 @@ vi.mock("@/lib/tools", async () => {
     fetchWordPressInfo: vi.fn().mockResolvedValue({ isWordPress: false, caching: [] }),
     fetchPageSpeedScores: vi.fn().mockResolvedValue({}),
     fetchVulnerabilities: vi.fn().mockResolvedValue({}),
+    checkXmlRpc: vi.fn().mockResolvedValue(false),
+    checkUserEnumeration: vi.fn().mockResolvedValue(false),
   };
 });
 
@@ -99,6 +101,8 @@ describe("additional checks", () => {
       sitemapPresent: boolean;
       missingSecurityHeaders: string[];
       usesHttps: boolean;
+      xmlRpcEnabled: boolean;
+      userEnumerationEnabled: boolean;
     }>((resolve) => {
       emitter.on("done", resolve);
     });
@@ -107,6 +111,8 @@ describe("additional checks", () => {
     expect(data.missingSecurityHeaders).toContain("content-security-policy");
     expect(data.missingSecurityHeaders).toContain("permissions-policy");
     expect(data.usesHttps).toBe(true);
+    expect(data.xmlRpcEnabled).toBe(false);
+    expect(data.userEnumerationEnabled).toBe(false);
   });
 
   it("flags misconfigured security headers", async () => {

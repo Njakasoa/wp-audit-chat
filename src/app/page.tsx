@@ -11,6 +11,8 @@ export default function Home() {
     imagesWithoutAlt?: number;
     missingSecurityHeaders?: string[];
     misconfiguredSecurityHeaders?: string[];
+    xmlRpcEnabled?: boolean;
+    userEnumerationEnabled?: boolean;
     [key: string]: unknown;
   };
   const [messages, setMessages] = useState<AuditMessage[]>([]);

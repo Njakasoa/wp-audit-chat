@@ -4,6 +4,8 @@ import {
   fetchWordPressInfo,
   fetchPageSpeedScores,
   fetchVulnerabilities,
+  checkXmlRpc,
+  checkUserEnumeration,
 } from "./tools";
 
 const ORIGINAL_API_KEY = process.env.PAGESPEED_API_KEY;
@@ -175,5 +177,39 @@ describe("fetchVulnerabilities", () => {
   it("returns empty without token", async () => {
     const res = await fetchVulnerabilities("plugin", ["test"]);
     expect(res).toEqual({});
+  });
+});
+
+describe("checkXmlRpc", () => {
+  it("detects enabled xmlrpc", async () => {
+    nock("https://xmlrpc.test").get("/xmlrpc.php").reply(405, "XML-RPC server accepts POST requests only.");
+    const enabled = await checkXmlRpc("https://xmlrpc.test");
+    expect(enabled).toBe(true);
+  });
+
+  it("returns false when disabled", async () => {
+    nock("https://no-xmlrpc.test").get("/xmlrpc.php").reply(404);
+    const enabled = await checkXmlRpc("https://no-xmlrpc.test");
+    expect(enabled).toBe(false);
+  });
+});
+
+describe("checkUserEnumeration", () => {
+  it("flags when user ids are exposed", async () => {
+    nock("https://users.test")
+      .get("/wp-json/wp/v2/users")
+      .query({ per_page: "1" })
+      .reply(200, [{ id: 1, name: "admin" }]);
+    const exposed = await checkUserEnumeration("https://users.test");
+    expect(exposed).toBe(true);
+  });
+
+  it("returns false when blocked", async () => {
+    nock("https://no-users.test")
+      .get("/wp-json/wp/v2/users")
+      .query({ per_page: "1" })
+      .reply(401, { code: "rest_cannot_access" });
+    const exposed = await checkUserEnumeration("https://no-users.test");
+    expect(exposed).toBe(false);
   });
 });

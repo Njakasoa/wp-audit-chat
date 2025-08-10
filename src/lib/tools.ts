@@ -238,3 +238,41 @@ export async function fetchVulnerabilities(
   }
   return results;
 }
+
+export async function checkXmlRpc(siteUrl: string): Promise<boolean> {
+  try {
+    const xmlrpcUrl = new URL("/xmlrpc.php", siteUrl).toString();
+    const res = await got(xmlrpcUrl, {
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+      throwHttpErrors: false,
+    });
+    const body = res.body.toLowerCase();
+    if (res.statusCode === 405 || res.statusCode === 200) {
+      return body.includes("xml-rpc");
+    }
+  } catch {
+    // ignore errors
+  }
+  return false;
+}
+
+export async function checkUserEnumeration(siteUrl: string): Promise<boolean> {
+  try {
+    const usersUrl = new URL("/wp-json/wp/v2/users", siteUrl).toString();
+    const res = await got(usersUrl, {
+      searchParams: { per_page: "1" },
+      timeout: { request: 8000 },
+      retry: { limit: 1 },
+      headers: { "user-agent": "WP-Audit-Chat" },
+    }).json<unknown>();
+    if (Array.isArray(res) && res.length > 0) {
+      const user = res[0];
+      return typeof user === "object" && user !== null && "id" in user;
+    }
+  } catch {
+    // ignore errors
+  }
+  return false;
+}

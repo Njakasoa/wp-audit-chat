@@ -8,6 +8,8 @@ import {
   fetchPageSpeedScores,
   fetchWordPressInfo,
   fetchVulnerabilities,
+  checkXmlRpc,
+  checkUserEnumeration,
   robotsTxtExists,
   sitemapExists,
 } from "@/lib/tools";
@@ -129,12 +131,16 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       sitemapPresent,
       pluginVulns,
       themeVulns,
+      xmlRpcEnabled,
+      userEnumerationEnabled,
     ] = await Promise.all([
       fetchWordPressInfo(url),
       robotsTxtExists(url),
       sitemapExists(url),
       fetchVulnerabilities("plugin", pluginSlugs),
       fetchVulnerabilities("theme", themeSlugs),
+      checkXmlRpc(url),
+      checkUserEnumeration(url),
     ]);
     emitter.emit("progress", { message: "Fetching PageSpeed Insights..." });
     const psi = await fetchPageSpeedScores(url);
@@ -154,6 +160,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       accessibilityViolations,
       missingSecurityHeaders,
       misconfiguredSecurityHeaders,
+      xmlRpcEnabled,
+      userEnumerationEnabled,
       isWordPress: wpInfo.isWordPress,
       name: wpInfo.name,
       wpVersion: wpInfo.wpVersion,
