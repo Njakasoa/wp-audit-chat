@@ -7,6 +7,8 @@ type Summary = {
   brokenLinkCount?: number;
   imagesWithoutAlt?: number;
   missingSecurityHeaders?: unknown[];
+  missingOpenGraph?: string[];
+  missingTwitter?: string[];
   accessibilityViolationCount?: number;
   performance?: number;
   accessibility?: number;
@@ -16,6 +18,14 @@ type Summary = {
   xmlRpcEnabled?: boolean;
   userEnumerationEnabled?: boolean;
   brokenImageCount?: number;
+  h1Count?: number;
+  hasMultipleH1?: boolean;
+  pageSamples?: {
+    url: string;
+    status: number;
+    title?: string;
+    imgWithoutAltCount?: number;
+  }[];
   [key: string]: unknown;
 } | null;
 
@@ -87,13 +97,63 @@ export default function SummaryView({ summary }: Props) {
           <ListRow label="Misconfigured Headers" value={(summary?.misconfiguredSecurityHeaders || []).length} />
           <ListRow label="XML-RPC Enabled" value={summary?.xmlRpcEnabled ? "Yes" : "No"} />
           <ListRow label="User Enumeration" value={summary?.userEnumerationEnabled ? "Yes" : "No"} />
+          <div className="mt-3">
+            <StackedBar
+              total={8}
+              missing={(summary?.missingSecurityHeaders as unknown[] | undefined)?.length ?? 0}
+              label="Security Headers"
+              presentLabel="Present"
+              missingLabel="Missing"
+              colors={{ present: "#16a34a", missing: "#ef4444" }}
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(summary?.missingSecurityHeaders as string[] | undefined)?.map((h) => (
+                <span key={h} className="inline-flex items-center rounded-full bg-muted text-foreground px-2 py-0.5 text-[11px]">
+                  {h}
+                </span>
+              ))}
+            </div>
+          </div>
         </Panel>
         <Panel title="Content & Links">
           <ListRow label="Images w/o alt" value={summary?.imagesWithoutAlt} />
           <ListRow label="Broken Links" value={summary?.brokenLinkCount} />
           <ListRow label="Broken Images" value={summary?.brokenImageCount} />
+          <div className="mt-3 space-y-3">
+            <StackedBar
+              total={3}
+              missing={(summary?.missingOpenGraph as string[] | undefined)?.length ?? 0}
+              label="Open Graph Tags"
+              presentLabel="Present"
+              missingLabel="Missing"
+              colors={{ present: "#2563eb", missing: "#f59e0b" }}
+            />
+            <StackedBar
+              total={4}
+              missing={(summary?.missingTwitter as string[] | undefined)?.length ?? 0}
+              label="Twitter Card Tags"
+              presentLabel="Present"
+              missingLabel="Missing"
+              colors={{ present: "#2563eb", missing: "#f59e0b" }}
+            />
+          </div>
         </Panel>
       </div>
+
+      {/* Pages overview */}
+      <Panel title="Pages Overview">
+        {Array.isArray(summary?.pageSamples) && summary?.pageSamples?.length ? (
+          <BarChart
+            data={(summary?.pageSamples || []).map((p) => ({
+              label: new URL(p.url).pathname || "/",
+              value: p.imgWithoutAltCount ?? 0,
+            }))}
+            label="Images without alt per page"
+          />
+        ) : (
+          <div className="text-sm text-muted-foreground">No page samples available.</div>
+        )}
+      </Panel>
 
       <Panel title="Raw Data">
         <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-96 text-foreground/90">
@@ -148,6 +208,75 @@ function ScoreRing({ label, value, color }: { label: string; value: number; colo
       </svg>
       <div className="text-xl font-semibold mt-2">{pct}</div>
       <div className="text-xs text-neutral-600">{label}</div>
+    </div>
+  );
+}
+
+function StackedBar({
+  total,
+  missing,
+  label,
+  presentLabel,
+  missingLabel,
+  colors,
+}: {
+  total: number;
+  missing: number;
+  label: string;
+  presentLabel: string;
+  missingLabel: string;
+  colors: { present: string; missing: string };
+}) {
+  const present = Math.max(0, total - Math.max(0, missing));
+  const presentPct = total > 0 ? (present / total) * 100 : 0;
+  const missingPct = total > 0 ? (missing / total) * 100 : 0;
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className="w-full h-3 bg-muted rounded overflow-hidden flex">
+        <div style={{ width: `${presentPct}%`, backgroundColor: colors.present }} />
+        <div style={{ width: `${missingPct}%`, backgroundColor: colors.missing }} />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {presentLabel}: <span className="text-foreground font-medium">{present}</span>
+        </span>
+        <span>
+          {missingLabel}: <span className="text-foreground font-medium">{missing}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BarChart({
+  data,
+  label,
+}: {
+  data: { label: string; value: number }[];
+  label: string;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const barColor = "#6b7280"; // neutral-500
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground mb-2">{label}</div>
+      <div className="grid gap-2">
+        {data.map((d) => {
+          const width = `${(d.value / max) * 100}%`;
+          return (
+            <div key={`${d.label}`} className="text-xs">
+              <div className="flex items-center justify-between">
+                <span className="truncate max-w-[60%]" title={d.label}>{d.label}</span>
+                <span className="text-muted-foreground">{d.value}</span>
+              </div>
+              <div className="h-2 bg-muted rounded">
+                <div className="h-2 rounded" style={{ width, backgroundColor: barColor }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
