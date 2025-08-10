@@ -1,6 +1,8 @@
 import EventEmitter from "events";
 import got from "got";
 import * as cheerio from "cheerio";
+import axe from "axe-core";
+import { JSDOM } from "jsdom";
 import { prisma } from "@/lib/prisma";
 import {
   fetchPageSpeedScores,
@@ -40,6 +42,12 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       headers: { "user-agent": "WP-Audit-Chat" },
     });
     const $ = cheerio.load(res.body);
+    const dom = new JSDOM(res.body);
+    const axeResults = await axe.run(dom.window.document);
+    const accessibilityViolationCount = axeResults.violations.length;
+    const accessibilityViolations = axeResults.violations
+      .slice(0, 10)
+      .map((v) => `${v.id}: ${v.description}`);
     const title = $("title").first().text().trim();
     const metaDesc = $('meta[name="description"]').attr("content");
     const h1Count = $("h1").length;
@@ -142,6 +150,8 @@ async function process(id: string, url: string, emitter: EventEmitter) {
       robotsTxtPresent,
       sitemapPresent,
       ssl: sslInfo,
+      accessibilityViolationCount,
+      accessibilityViolations,
       missingSecurityHeaders,
       misconfiguredSecurityHeaders,
       isWordPress: wpInfo.isWordPress,

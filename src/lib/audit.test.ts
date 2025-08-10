@@ -36,6 +36,12 @@ vi.mock("@/lib/ssl", () => ({
   fetchSslInfo: vi.fn().mockResolvedValue(sslMock),
 }));
 
+const axeMock = vi.hoisted(() => ({
+  run: vi.fn().mockResolvedValue({ violations: [] }),
+}));
+
+vi.mock("axe-core", () => ({ default: axeMock }));
+
 afterEach(() => {
   nock.cleanAll();
 });
@@ -163,5 +169,36 @@ describe("broken links", () => {
       emitter.on("done", resolve);
     });
     expect(data.brokenLinks).toEqual(["https://broken.test/bad"]);
+  });
+});
+
+describe("accessibility", () => {
+  it("includes axe-core violations in summary", async () => {
+    axeMock.run.mockResolvedValueOnce({
+      violations: [
+        {
+          id: "image-alt",
+          description: "Images must have alternate text",
+        },
+      ],
+    });
+    const html = `<!doctype html><img src="a.jpg">`;
+    nock("https://a11y.test")
+      .get("/")
+      .reply(200, html)
+      .get("/robots.txt")
+      .reply(404)
+      .get("/sitemap.xml")
+      .reply(404);
+    const id = await startAudit("https://a11y.test");
+    const emitter = getEmitter(id)!;
+    const data = await new Promise<{
+      accessibilityViolationCount: number;
+      accessibilityViolations: string[];
+    }>((resolve) => {
+      emitter.on("done", resolve);
+    });
+    expect(data.accessibilityViolationCount).toBe(1);
+    expect(data.accessibilityViolations[0]).toContain("image-alt");
   });
 });
